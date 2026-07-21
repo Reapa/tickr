@@ -49,6 +49,16 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/signin', builder: (context, state) => const SignInScreen()),
+      // Reachable from every screen via the top-right actions, so they live at
+      // the top level and present over whichever tab you're on.
+      GoRoute(
+        path: '/friends',
+        builder: (context, state) => const FriendsScreen(),
+      ),
+      GoRoute(
+        path: '/store',
+        builder: (context, state) => const StoreScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => ShellScreen(shell: shell),
         branches: [
@@ -75,12 +85,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(
               path: '/compete',
               builder: (context, state) => const CompeteScreen(),
-              routes: [
-                GoRoute(
-                  path: 'friends',
-                  builder: (context, state) => const FriendsScreen(),
-                ),
-              ],
             ),
           ]),
           StatefulShellBranch(routes: [
@@ -93,12 +97,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(
               path: '/profile',
               builder: (context, state) => const ProfileScreen(),
-              routes: [
-                GoRoute(
-                  path: 'store',
-                  builder: (context, state) => const StoreScreen(),
-                ),
-              ],
             ),
           ]),
         ],

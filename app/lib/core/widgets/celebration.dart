@@ -83,8 +83,13 @@ class _CelebrationState extends State<_Celebration>
 
   @override
   Widget build(BuildContext context) {
+    // Overlay entries have no Material ancestor, which paints text with the
+    // debug yellow double-underline. A transparent Material fixes that without
+    // adding any visible surface.
     return IgnorePointer(
-      child: AnimatedBuilder(
+      child: Material(
+        type: MaterialType.transparency,
+        child: AnimatedBuilder(
         animation: _c,
         builder: (context, _) {
           final t = _c.value;
@@ -103,45 +108,70 @@ class _CelebrationState extends State<_Celebration>
                 ),
               ),
               Center(
-                child: Opacity(
-                  opacity: bannerOpacity.clamp(0, 1),
-                  child: Transform.scale(
-                    scale: bannerScale,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 32, vertical: 24),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.accent.withValues(alpha: 0.95),
-                            AppTheme.up.withValues(alpha: 0.95),
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.accent.withValues(alpha: 0.5),
-                            blurRadius: 40,
-                            spreadRadius: 4,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Opacity(
+                    opacity: bannerOpacity.clamp(0, 1),
+                    child: Transform.scale(
+                      scale: bannerScale,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 340),
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceHigh,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                                color: AppTheme.brand.withValues(alpha: 0.6),
+                                width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.brand.withValues(alpha: 0.35),
+                                blurRadius: 48,
+                                spreadRadius: 2,
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(widget.emoji,
-                              style: const TextStyle(fontSize: 48)),
-                          const SizedBox(height: 8),
-                          Text(widget.title,
-                              style: const TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w900)),
-                          Text(widget.subtitle,
-                              style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontWeight: FontWeight.w600)),
-                        ],
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 72,
+                                height: 72,
+                                alignment: Alignment.center,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [AppTheme.accent, AppTheme.up],
+                                  ),
+                                ),
+                                child: Text(widget.emoji,
+                                    style: const TextStyle(fontSize: 38)),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                widget.title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.5),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                widget.subtitle,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    color: Colors.grey.shade300,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -150,6 +180,7 @@ class _CelebrationState extends State<_Celebration>
             ],
           );
         },
+      ),
       ),
     );
   }

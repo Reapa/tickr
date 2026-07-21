@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -55,6 +57,44 @@ class SocialRepository {
       ..sort((x, y) => y.netWorth.compareTo(x.netWorth));
   }
 
+  /// Live friend graph: refetches on any change to the player's friendships
+  /// (RLS scopes Realtime events to rows they can see), so an accepted request
+  /// or a new incoming request lands without a reload.
+  Stream<List<FriendEntry>> watchFriends(String myId) {
+    final controller = StreamController<List<FriendEntry>>();
+    RealtimeChannel? channel;
+    Timer? debounce;
+
+    Future<void> refresh() async {
+      try {
+        controller.add(await fetchFriends(myId));
+      } catch (error, stack) {
+        controller.addError(error, stack);
+      }
+    }
+
+    controller.onListen = () {
+      refresh();
+      channel = _client
+          .channel('friendships-$myId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'friendships',
+            callback: (_) {
+              debounce?.cancel();
+              debounce = Timer(const Duration(milliseconds: 250), refresh);
+            },
+          )
+          .subscribe();
+    };
+    controller.onCancel = () {
+      debounce?.cancel();
+      if (channel != null) _client.removeChannel(channel!);
+    };
+    return controller.stream;
+  }
+
   Future<Map<String, dynamic>> sendFriendRequest(String friendCode) =>
       _client.rpc<Map<String, dynamic>>('send_friend_request',
           params: {'p_friend_code': friendCode});
@@ -70,8 +110,8 @@ final socialRepositoryProvider = Provider<SocialRepository>(
   (ref) => SocialRepository(ref.watch(supabaseProvider)),
 );
 
-final friendsProvider = FutureProvider<List<FriendEntry>>((ref) {
+final friendsProvider = StreamProvider<List<FriendEntry>>((ref) {
   final myId = ref.watch(currentUserIdProvider);
-  if (myId == null) return Future.value(const <FriendEntry>[]);
-  return ref.watch(socialRepositoryProvider).fetchFriends(myId);
+  if (myId == null) return Stream.value(const <FriendEntry>[]);
+  return ref.watch(socialRepositoryProvider).watchFriends(myId);
 });

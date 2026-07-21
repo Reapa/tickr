@@ -160,6 +160,30 @@ class AssetDetailScreen extends ConsumerWidget {
   }
 }
 
+/// Compact, uniform style for the three trade buttons so a longer label like
+/// "Leverage" never forces the row to squash or wrap.
+ButtonStyle _tradeBtnStyle({required Color bg, required Color fg}) =>
+    FilledButton.styleFrom(
+      backgroundColor: bg,
+      foregroundColor: fg,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+    );
+
+/// A single-line trade-button label that scales down instead of wrapping.
+class _TradeLabel extends StatelessWidget {
+  const _TradeLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(text, maxLines: 1, softWrap: false),
+    );
+  }
+}
+
 /// The buy / sell / leverage action bar. Reflects market open/closed state and
 /// explains why an action is unavailable instead of leaving a dead button.
 class _TradeBar extends StatelessWidget {
@@ -220,30 +244,28 @@ class _TradeBar extends StatelessWidget {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.up,
-                        foregroundColor: Colors.black),
-                    icon: const Icon(Icons.arrow_upward, size: 18),
+                    style: _tradeBtnStyle(
+                        bg: AppTheme.up, fg: Colors.black),
+                    icon: const Icon(Icons.arrow_upward, size: 16),
                     onPressed: open
                         ? () => showOrderTicket(context, asset, 'buy')
                         : null,
-                    label: const Text('Buy'),
+                    label: const _TradeLabel('Buy'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.down,
-                        foregroundColor: Colors.white),
-                    icon: const Icon(Icons.arrow_downward, size: 18),
+                    style: _tradeBtnStyle(
+                        bg: AppTheme.down, fg: Colors.white),
+                    icon: const Icon(Icons.arrow_downward, size: 16),
                     onPressed: open && hasPosition
                         ? () => showOrderTicket(context, asset, 'sell')
                         : null,
-                    label: const Text('Sell'),
+                    label: const _TradeLabel('Sell'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(child: _LeverageButton(asset: asset)),
               ],
             ),
@@ -266,15 +288,14 @@ class _LeverageButton extends ConsumerWidget {
         ref.watch(unlockedClassesProvider).value?.contains('margin') ?? false;
     final open = asset.isMarketOpenNow;
     return FilledButton.icon(
-      style: FilledButton.styleFrom(
-          backgroundColor: AppTheme.gold, foregroundColor: Colors.black),
-      icon: const Icon(Icons.bolt, size: 18, color: Colors.black),
+      style: _tradeBtnStyle(bg: AppTheme.gold, fg: Colors.black),
+      icon: const Icon(Icons.bolt, size: 16, color: Colors.black),
       onPressed: !open
           ? null
           : () => unlocked
               ? showLeverageSheet(context, asset)
               : _offerUnlock(context, ref),
-      label: Text(unlocked ? 'Leverage' : 'Unlock'),
+      label: _TradeLabel(unlocked ? 'Leverage' : 'Unlock'),
     );
   }
 

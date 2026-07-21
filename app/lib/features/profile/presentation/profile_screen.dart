@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/brand.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
-import '../../auth/data/auth_repository.dart';
 import '../../market/data/market_repository.dart';
 import '../../market/domain/asset.dart';
 import '../../trading/data/trading_repository.dart';
@@ -22,21 +20,7 @@ class ProfileScreen extends ConsumerWidget {
     final unlocked = ref.watch(unlockedClassesProvider).value ?? const <String>{};
 
     return Scaffold(
-      appBar: tickrAppBar(
-        title: 'Profile',
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.storefront_outlined),
-            tooltip: 'Store',
-            onPressed: () => context.go('/profile/store'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
-          ),
-        ],
-      ),
+      appBar: tickrAppBar(title: 'Profile'),
       body: profile == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(

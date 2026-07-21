@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/brand.dart';
 import '../../../core/format.dart';
@@ -25,13 +24,6 @@ class CompeteScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: tickrAppBar(
           title: 'Compete',
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.group_add_outlined),
-              tooltip: 'Friends',
-              onPressed: () => context.go('/compete/friends'),
-            ),
-          ],
           bottom: const TabBar(isScrollable: true, tabs: [
             Tab(text: '🔴 Live'),
             Tab(text: 'Global'),

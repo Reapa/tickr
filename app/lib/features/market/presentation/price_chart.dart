@@ -155,6 +155,15 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
   double _fromEnd = 0;
   double _scaleStartVisible = 40;
 
+  // The candle whose OHLC tooltip is showing (null = none). Driven manually so
+  // it clears the moment the finger lifts — the built-in tooltip would stick,
+  // because the pan/zoom GestureDetector swallows the pointer-up event.
+  int? _touchedIndex;
+
+  void _clearTouch() {
+    if (_touchedIndex != null) setState(() => _touchedIndex = null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final candles = ref
@@ -218,9 +227,18 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
           final chartWidth = constraints.maxWidth - 56; // minus price axis
           final bodyWidth =
               (chartWidth / window.length * 0.62).clamp(2.0, 16.0);
+          final tip = (_touchedIndex != null && _touchedIndex! < spots.length)
+              ? [_touchedIndex!]
+              : const <int>[];
           return Stack(
             children: [
-              GestureDetector(
+              // Listener catches the raw pointer-up even when the gesture is
+              // claimed by the pan/zoom recognizer, guaranteeing the tooltip
+              // clears when the finger leaves the screen.
+              Listener(
+                onPointerUp: (_) => _clearTouch(),
+                onPointerCancel: (_) => _clearTouch(),
+                child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onScaleStart: (_) => _scaleStartVisible = _visible,
                 onScaleUpdate: (details) {
@@ -241,6 +259,25 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                     candlestickSpots: spots,
                     minY: minY,
                     maxY: maxY,
+                    showingTooltipIndicators: tip,
+                    candlestickTouchData: CandlestickTouchData(
+                      // We drive the tooltip ourselves via showingTooltipIndicators
+                      // so it can be dismissed on pointer-up.
+                      handleBuiltInTouches: false,
+                      touchCallback: (event, response) {
+                        final idx = response?.touchedSpot?.spotIndex;
+                        final ended = event is FlTapUpEvent ||
+                            event is FlTapCancelEvent ||
+                            event is FlPanEndEvent ||
+                            event is FlPanCancelEvent ||
+                            event is FlPointerExitEvent ||
+                            event is FlLongPressEnd;
+                        final next = (ended || idx == null) ? null : idx;
+                        if (next != _touchedIndex) {
+                          setState(() => _touchedIndex = next);
+                        }
+                      },
+                    ),
                     rangeAnnotations: RangeAnnotations(
                       horizontalRangeAnnotations: [
                         for (final marker in widget.markers)
@@ -309,6 +346,7 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                     ),
                   ),
                   duration: Duration.zero,
+                ),
                 ),
               ),
               // Zoom / pan controls.

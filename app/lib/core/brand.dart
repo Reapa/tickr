@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'theme.dart';
+import 'widgets/nav_actions.dart';
 
 /// Tickr brand constants and logo lockup.
 ///
@@ -115,11 +116,14 @@ class TickrLogo extends StatelessWidget {
 }
 
 /// A consistent app bar carrying the Tickr mark next to the section title —
-/// keeps the brand present on every screen.
+/// keeps the brand present on every screen. The persistent Friends / Store /
+/// Sign-out actions are appended on the right (after any [actions]) so they're
+/// reachable from every main screen; pass `globalActions: false` to omit them.
 AppBar tickrAppBar({
   required String title,
-  List<Widget>? actions,
+  List<Widget> actions = const [],
   PreferredSizeWidget? bottom,
+  bool globalActions = true,
 }) {
   return AppBar(
     titleSpacing: 12,
@@ -131,7 +135,10 @@ AppBar tickrAppBar({
         Text(title),
       ],
     ),
-    actions: actions,
+    actions: [
+      ...actions,
+      if (globalActions) const TickrActions(),
+    ],
     bottom: bottom,
   );
 }
