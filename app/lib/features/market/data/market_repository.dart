@@ -240,7 +240,8 @@ final candlesProvider = FutureProvider.autoDispose
     .family<List<Candle>, (String, int)>((ref, key) {
   final timer = Timer(const Duration(seconds: 10), ref.invalidateSelf);
   ref.onDispose(timer.cancel);
-  return ref.watch(marketRepositoryProvider).fetchCandles(key.$1, key.$2);
+  // Fetch a deep history so the chart can be scrolled/zoomed back in time.
+  return ref.watch(marketRepositoryProvider).fetchCandles(key.$1, key.$2, limit: 200);
 });
 
 /// 24h-ago reference price per asset. Fetched once and cached (unlike the

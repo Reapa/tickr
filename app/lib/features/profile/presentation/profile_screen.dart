@@ -185,11 +185,13 @@ class _LevelRingAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Extra height so the level badge sits fully inside the box (no clipping).
     return SizedBox(
       width: 64,
-      height: 64,
+      height: 74,
       child: Stack(
-        alignment: Alignment.center,
+        alignment: Alignment.topCenter,
+        clipBehavior: Clip.none,
         children: [
           SizedBox(
             width: 64,
@@ -201,19 +203,22 @@ class _LevelRingAvatar extends StatelessWidget {
               valueColor: const AlwaysStoppedAnimation(AppTheme.brand),
             ),
           ),
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: AppTheme.brand.withValues(alpha: 0.18),
-            child: Text(
-              profile.displayName.characters.first.toUpperCase(),
-              style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.brand),
+          Positioned(
+            top: 8,
+            child: CircleAvatar(
+              radius: 24,
+              backgroundColor: AppTheme.brand.withValues(alpha: 0.18),
+              child: Text(
+                profile.displayName.characters.first.toUpperCase(),
+                style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.brand),
+              ),
             ),
           ),
           Positioned(
-            bottom: -2,
+            bottom: 0,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
               decoration: BoxDecoration(

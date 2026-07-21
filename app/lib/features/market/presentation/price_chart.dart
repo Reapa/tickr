@@ -133,7 +133,7 @@ class _PriceChartState extends ConsumerState<PriceChart> {
   return (lo <= 0 ? 0.01 : lo, hi);
 }
 
-class _CandleMode extends ConsumerWidget {
+class _CandleMode extends ConsumerStatefulWidget {
   const _CandleMode({
     required this.asset,
     required this.bucketSeconds,
@@ -145,9 +145,21 @@ class _CandleMode extends ConsumerWidget {
   final List<ChartMarker> markers;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final candles =
-        ref.watch(candlesProvider((asset.id, bucketSeconds))).value;
+  ConsumerState<_CandleMode> createState() => _CandleModeState();
+}
+
+class _CandleModeState extends ConsumerState<_CandleMode> {
+  // Windowing state: how many candles are visible (zoom) and how far the right
+  // edge sits from the newest candle (pan; 0 = following the live edge).
+  double _visible = 40;
+  double _fromEnd = 0;
+  double _scaleStartVisible = 40;
+
+  @override
+  Widget build(BuildContext context) {
+    final candles = ref
+        .watch(candlesProvider((widget.asset.id, widget.bucketSeconds)))
+        .value;
     if (candles == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -156,15 +168,20 @@ class _CandleMode extends ConsumerWidget {
           child: Text('Not enough history for this interval yet…'));
     }
 
-    // Fold the live price into the forming (last) candle so it moves on every
-    // tick instead of only when the 10s server refetch lands.
-    final live = asset.currentPrice;
-    final last = candles.length - 1;
+    final total = candles.length;
+    final visible = _visible.clamp(8, total).round();
+    final fromEnd = _fromEnd.clamp(0, total - visible).round();
+    final right = total - fromEnd; // exclusive
+    final start = right - visible;
+    final window = candles.sublist(start, right);
+    final includesLive = right == total;
+    final live = widget.asset.currentPrice;
+
     final spots = <CandlestickSpot>[
-      for (final (index, c) in candles.indexed)
-        if (index == last)
+      for (final (i, c) in window.indexed)
+        if (includesLive && i == window.length - 1)
           CandlestickSpot(
-            x: index.toDouble(),
+            x: i.toDouble(),
             open: c.open,
             high: c.high < live ? live : c.high,
             low: c.low > live ? live : c.low,
@@ -172,105 +189,179 @@ class _CandleMode extends ConsumerWidget {
           )
         else
           CandlestickSpot(
-            x: index.toDouble(),
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close,
-          ),
+              x: i.toDouble(),
+              open: c.open,
+              high: c.high,
+              low: c.low,
+              close: c.close),
     ];
     final (minY, maxY) = _yRange(
-      [...candles.expand((c) => [c.low, c.high]), live],
-      markers,
+      [
+        ...window.expand((c) => [c.low, c.high]),
+        if (includesLive) live,
+      ],
+      widget.markers,
     );
-    // Markers as thin horizontal bands (candlestick charts support range
-    // annotations, not extra lines); the legend below carries the values.
     final bandHalf = (maxY - minY) * 0.0025;
+
+    void zoom(double factor) => setState(() {
+          _visible = (_visible * factor).clamp(8, total.toDouble());
+        });
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final chartWidth = constraints.maxWidth - 56; // minus price axis
           final bodyWidth =
-              (constraints.maxWidth / candles.length * 0.6).clamp(2.0, 14.0);
-          return CandlestickChart(
-            CandlestickChartData(
-              candlestickSpots: spots,
-              minY: minY,
-              maxY: maxY,
-              rangeAnnotations: RangeAnnotations(
-                horizontalRangeAnnotations: [
-                  for (final marker in markers)
-                    HorizontalRangeAnnotation(
-                      y1: marker.price - bandHalf,
-                      y2: marker.price + bandHalf,
-                      color: marker.color.withValues(alpha: 0.55),
+              (chartWidth / window.length * 0.62).clamp(2.0, 16.0);
+          return Stack(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onScaleStart: (_) => _scaleStartVisible = _visible,
+                onScaleUpdate: (details) {
+                  setState(() {
+                    // Pinch → zoom (fewer candles as you spread fingers).
+                    if (details.scale != 1.0) {
+                      _visible = (_scaleStartVisible / details.scale)
+                          .clamp(8, total.toDouble());
+                    }
+                    // Drag → pan back/forward through history.
+                    final candleW = chartWidth / visible;
+                    _fromEnd = (_fromEnd + details.focalPointDelta.dx / candleW)
+                        .clamp(0, (total - visible).toDouble());
+                  });
+                },
+                child: CandlestickChart(
+                  CandlestickChartData(
+                    candlestickSpots: spots,
+                    minY: minY,
+                    maxY: maxY,
+                    rangeAnnotations: RangeAnnotations(
+                      horizontalRangeAnnotations: [
+                        for (final marker in widget.markers)
+                          HorizontalRangeAnnotation(
+                            y1: marker.price - bandHalf,
+                            y2: marker.price + bandHalf,
+                            color: marker.color.withValues(alpha: 0.55),
+                          ),
+                      ],
                     ),
-                ],
-              ),
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                getDrawingHorizontalLine: (value) => FlLine(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  strokeWidth: 1,
-                ),
-              ),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                leftTitles: const AxisTitles(),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    interval: (candles.length / 4).clamp(1, 999).toDouble(),
-                    getTitlesWidget: (value, meta) {
-                      final index = value.toInt();
-                      if (index < 0 || index >= candles.length) {
-                        return const SizedBox.shrink();
-                      }
-                      final t = candles[index].bucket;
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
-                          style: const TextStyle(fontSize: 10),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (value) => FlLine(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          strokeWidth: 1),
+                    ),
+                    titlesData: FlTitlesData(
+                      topTitles: const AxisTitles(),
+                      leftTitles: const AxisTitles(),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          interval:
+                              (window.length / 4).clamp(1, 999).toDouble(),
+                          getTitlesWidget: (value, meta) {
+                            final index = value.toInt();
+                            if (index < 0 || index >= window.length) {
+                              return const SizedBox.shrink();
+                            }
+                            final t = window[index].bucket;
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-                ),
-                rightTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 56,
-                    getTitlesWidget: (value, meta) => Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: Text(
-                        Fmt.moneyCompact(value),
-                        style: const TextStyle(fontSize: 10),
+                      ),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 56,
+                          getTitlesWidget: (value, meta) => Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Text(Fmt.moneyCompact(value),
+                                style: const TextStyle(fontSize: 10)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    candlestickPainter: DefaultCandlestickPainter(
+                      candlestickStyleProvider: (spot, index) =>
+                          CandlestickStyle(
+                        lineColor: spot.isUp ? AppTheme.up : AppTheme.down,
+                        lineWidth: 1.2,
+                        bodyStrokeColor: Colors.transparent,
+                        bodyStrokeWidth: 0,
+                        bodyFillColor: spot.isUp ? AppTheme.up : AppTheme.down,
+                        bodyWidth: bodyWidth,
+                        bodyRadius: 1,
                       ),
                     ),
                   ),
+                  duration: Duration.zero,
                 ),
               ),
-              borderData: FlBorderData(show: false),
-              candlestickPainter: DefaultCandlestickPainter(
-                candlestickStyleProvider: (spot, index) => CandlestickStyle(
-                  lineColor: spot.isUp ? AppTheme.up : AppTheme.down,
-                  lineWidth: 1.2,
-                  bodyStrokeColor: Colors.transparent,
-                  bodyStrokeWidth: 0,
-                  bodyFillColor: spot.isUp ? AppTheme.up : AppTheme.down,
-                  bodyWidth: bodyWidth,
-                  bodyRadius: 1,
+              // Zoom / pan controls.
+              Positioned(
+                top: 0,
+                left: 0,
+                child: Row(
+                  children: [
+                    _ChartBtn(
+                        icon: Icons.remove,
+                        onTap: () => zoom(1.4)),
+                    _ChartBtn(icon: Icons.add, onTap: () => zoom(0.7)),
+                    if (fromEnd > 0 || visible != 40)
+                      _ChartBtn(
+                        icon: Icons.skip_next,
+                        tooltip: 'Live',
+                        onTap: () => setState(() {
+                          _fromEnd = 0;
+                          _visible = 40;
+                        }),
+                      ),
+                  ],
                 ),
               ),
-            ),
-            duration: Duration.zero,
+            ],
           );
         },
       ),
     );
+  }
+}
+
+class _ChartBtn extends StatelessWidget {
+  const _ChartBtn({required this.icon, required this.onTap, this.tooltip});
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(7),
+      child: Container(
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceHigh.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(color: AppTheme.hairline),
+        ),
+        child: Icon(icon, size: 16),
+      ),
+    );
+    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
   }
 }
 
