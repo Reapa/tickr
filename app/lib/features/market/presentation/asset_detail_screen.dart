@@ -6,6 +6,8 @@ import '../../../core/format.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
 import '../../../core/widgets/price_flash.dart';
+import '../../leverage/data/leverage_repository.dart';
+import '../../leverage/presentation/leverage_position_card.dart';
 import '../../leverage/presentation/leverage_sheet.dart';
 import '../../portfolio/data/portfolio_repository.dart';
 import '../../profile/data/profile_repository.dart';
@@ -39,6 +41,9 @@ class AssetDetailScreen extends ConsumerWidget {
         .value
         ?.where((h) => h.assetId == assetId)
         .firstOrNull;
+    final levPositions = (ref.watch(leveragedPositionsProvider).value ?? const [])
+        .where((p) => p.assetId == assetId && p.isOpen)
+        .toList();
     final events = ref.watch(marketEventsProvider).value ?? const [];
     final assetEvents = events
         .where((e) =>
@@ -125,6 +130,15 @@ class AssetDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
+          if (levPositions.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text('⚡ Your leveraged positions',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            for (final p in levPositions)
+              LeveragePositionCard(position: p, asset: asset),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
             child: Text(asset.description,

@@ -18,15 +18,15 @@ import 'ticker_tape.dart';
 import 'top_movers.dart';
 import 'widgets.dart';
 
-/// The market: live asset list grouped by class (with unlock gates) and the
-/// news feed that explains why prices are moving.
+/// The market: separate tabs for the traditional assets, the 24/7 crypto
+/// desk, the 24/5 forex desk, and the news feed that explains the moves.
 class MarketScreen extends ConsumerWidget {
   const MarketScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 2,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Market'),
@@ -36,13 +36,28 @@ class MarketScreen extends ConsumerWidget {
               child: Center(child: ConceptChip(Concepts.supplyDemand)),
             ),
           ],
-          bottom: const TabBar(tabs: [
+          bottom: const TabBar(isScrollable: true, tabs: [
             Tab(text: 'Assets'),
+            Tab(text: '₿ Crypto'),
+            Tab(text: '💱 Forex'),
             Tab(text: 'News'),
           ]),
         ),
         body: const TabBarView(children: [
-          _AssetsTab(),
+          _MarketList(
+            classIds: {'stocks', 'real_estate', 'companies', 'margin'},
+            showMovers: true,
+          ),
+          _MarketList(
+            classIds: {'crypto'},
+            banner: '🟢 Crypto trades 24/7 — extreme volatility, big swings, '
+                'no closing bell.',
+          ),
+          _MarketList(
+            classIds: {'forex'},
+            banner: '🕔 Forex trades 24/5 (closed weekends) — small moves, '
+                'deep liquidity, made for leverage.',
+          ),
           _NewsTab(),
         ]),
       ),
@@ -50,8 +65,18 @@ class MarketScreen extends ConsumerWidget {
   }
 }
 
-class _AssetsTab extends ConsumerWidget {
-  const _AssetsTab();
+/// A class-filtered market list. Shows the ticker + movers header only on the
+/// main Assets tab; single-desk tabs (crypto/forex) get an intro banner.
+class _MarketList extends ConsumerWidget {
+  const _MarketList({
+    required this.classIds,
+    this.showMovers = false,
+    this.banner,
+  });
+
+  final Set<String> classIds;
+  final bool showMovers;
+  final String? banner;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,8 +87,12 @@ class _AssetsTab extends ConsumerWidget {
     return AsyncView(
       value: assets,
       builder: (assetList) {
-        final classList = classes.value ?? const <AssetClass>[];
+        final classList = classes.value
+                ?.where((c) => classIds.contains(c.id))
+                .toList() ??
+            const <AssetClass>[];
         final unlockedIds = unlocked.value ?? const <String>{};
+        final multi = classList.length > 1;
         return RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(unlockedClassesProvider);
@@ -71,23 +100,32 @@ class _AssetsTab extends ConsumerWidget {
           },
           child: ListView(
             children: [
-              const TickerTape(),
-              const Divider(height: 1),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Text('Top Movers · 24h',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13)),
-              ),
-              const TopMovers(),
-              for (final cls in classList) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                  child: Text(
-                    cls.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+              if (showMovers) ...[
+                const TickerTape(),
+                const Divider(height: 1),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Text('Top Movers · 24h',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 ),
+                const TopMovers(),
+              ],
+              if (banner != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Text(banner!,
+                      style: Theme.of(context).textTheme.bodySmall),
+                ),
+              for (final cls in classList) ...[
+                if (multi)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                    child: Text(cls.name,
+                        style: Theme.of(context).textTheme.titleMedium),
+                  )
+                else
+                  const SizedBox(height: 8),
                 if (cls.id == 'margin' && unlockedIds.contains(cls.id))
                   const Card(
                     child: ListTile(
@@ -151,12 +189,18 @@ class _AssetTile extends ConsumerWidget {
             ],
           ],
         ),
-        subtitle: Text(
-          asset.sector.toUpperCase(),
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: sectorColor.withValues(alpha: 0.9)),
+        subtitle: Text.rich(
+          TextSpan(children: [
+            TextSpan(
+              text: asset.sector.toUpperCase(),
+              style: TextStyle(color: sectorColor.withValues(alpha: 0.9)),
+            ),
+            TextSpan(
+              text: '  ·  spread ${(asset.spread * 100).toStringAsFixed(2)}%',
+              style: TextStyle(color: Colors.grey.shade500),
+            ),
+          ]),
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

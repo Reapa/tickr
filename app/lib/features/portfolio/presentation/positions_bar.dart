@@ -8,40 +8,37 @@ import '../../leverage/data/leverage_repository.dart';
 import '../../leverage/domain/leveraged_position.dart';
 import '../../market/data/market_repository.dart';
 import '../../market/domain/asset.dart';
+import '../../profile/data/profile_repository.dart';
 import '../data/portfolio_repository.dart';
 import '../domain/holding.dart';
 import '../domain/portfolio_math.dart';
 
-/// A compact, always-visible strip of open positions with live P&L,
-/// docked above the navigation on every tab. Tap a chip to jump to the
-/// asset; tap the summary to open the portfolio.
+/// An always-visible finances strip docked above the navigation on every tab:
+/// net worth, cash (buying power), and today's P&L, plus live position chips
+/// when the player holds anything. Tap the finances to open the portfolio.
 class PositionsBar extends ConsumerWidget {
   const PositionsBar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(myProfileProvider).value;
+    if (profile == null) return const SizedBox.shrink();
+
     final holdings = ref.watch(holdingsProvider).value ?? const <Holding>[];
     final leveraged = (ref.watch(leveragedPositionsProvider).value ?? const [])
         .where((p) => p.isOpen)
         .toList();
     final assets = ref.watch(assetsProvider).value ?? const <Asset>[];
-    if ((holdings.isEmpty && leveraged.isEmpty) || assets.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
     final assetById = {for (final a in assets) a.id: a};
-    var totalPnl = 0.0;
-    for (final h in holdings) {
-      final a = assetById[h.assetId];
-      if (a != null) totalPnl += PortfolioMath.unrealizedPnl(h, a.currentPrice);
-    }
-    for (final p in leveraged) {
-      final a = assetById[p.assetId];
-      if (a != null) totalPnl += p.pnlAt(p.isLong ? a.bidPrice : a.askPrice);
-    }
+
+    // Today's change = net worth now vs the oldest point in the loaded history.
+    final history = ref.watch(netWorthHistoryProvider).value;
+    final double? todayChange = (history != null && history.isNotEmpty)
+        ? profile.netWorth - history.first.netWorth
+        : null;
 
     return Container(
-      height: 40,
+      height: 46,
       decoration: BoxDecoration(
         color: AppTheme.surface,
         border: Border(
@@ -56,44 +53,77 @@ class PositionsBar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
-                  Icon(Icons.work_outline,
-                      size: 14, color: AppTheme.changeColor(totalPnl)),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${totalPnl >= 0 ? '+' : ''}${Fmt.money(totalPnl)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.changeColor(totalPnl),
-                    ),
+                  _Metric(label: 'NET', value: Fmt.moneyCompact(profile.netWorth)),
+                  const SizedBox(width: 14),
+                  _Metric(label: 'CASH', value: Fmt.moneyCompact(profile.cashBalance)),
+                  const SizedBox(width: 14),
+                  _Metric(
+                    label: 'TODAY',
+                    value: todayChange == null
+                        ? '—'
+                        : '${todayChange >= 0 ? '+' : ''}${Fmt.moneyCompact(todayChange)}',
+                    color: todayChange == null
+                        ? null
+                        : AppTheme.changeColor(todayChange),
                   ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, size: 16),
                 ],
               ),
             ),
           ),
           const VerticalDivider(width: 1, indent: 8, endIndent: 8),
           Expanded(
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              children: [
-                for (final holding in holdings)
-                  if (assetById[holding.assetId] != null)
-                    _PositionChip(
-                      holding: holding,
-                      asset: assetById[holding.assetId]!,
-                    ),
-                for (final position in leveraged)
-                  if (assetById[position.assetId] != null)
-                    _LeverageChip(
-                      position: position,
-                      asset: assetById[position.assetId]!,
-                    ),
-              ],
-            ),
+            child: (holdings.isEmpty && leveraged.isEmpty)
+                ? const SizedBox.shrink()
+                : ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    children: [
+                      for (final holding in holdings)
+                        if (assetById[holding.assetId] != null)
+                          _PositionChip(
+                            holding: holding,
+                            asset: assetById[holding.assetId]!,
+                          ),
+                      for (final position in leveraged)
+                        if (assetById[position.assetId] != null)
+                          _LeverageChip(
+                            position: position,
+                            asset: assetById[position.assetId]!,
+                          ),
+                    ],
+                  ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A stacked LABEL / value pair for the finances strip.
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.value, this.color});
+
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 8,
+                letterSpacing: 0.5,
+                color: Colors.grey.shade500)),
+        Text(value,
+            style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+      ],
     );
   }
 }
