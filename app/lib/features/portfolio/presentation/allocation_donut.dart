@@ -53,6 +53,14 @@ class _AllocationDonutState extends ConsumerState<AllocationDonut> {
     final total = slices.fold(0.0, (a, b) => a + b.value);
     if (total <= 0) return const SizedBox.shrink();
 
+    // fl_chart reports -1 when the touch leaves the chart; treat anything
+    // out of range as "nothing selected".
+    final selected = (_touchedIndex != null &&
+            _touchedIndex! >= 0 &&
+            _touchedIndex! < slices.length)
+        ? _touchedIndex
+        : null;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -86,7 +94,7 @@ class _AllocationDonutState extends ConsumerState<AllocationDonut> {
                               PieChartSectionData(
                                 value: s.value,
                                 color: s.color,
-                                radius: _touchedIndex == i ? 26 : 20,
+                                radius: selected == i ? 26 : 20,
                                 showTitle: false,
                               ),
                           ],
@@ -96,16 +104,14 @@ class _AllocationDonutState extends ConsumerState<AllocationDonut> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            _touchedIndex != null &&
-                                    _touchedIndex! < slices.length
-                                ? slices[_touchedIndex!].label
+                            selected != null
+                                ? slices[selected].label
                                 : 'Net worth',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           Text(
-                            _touchedIndex != null &&
-                                    _touchedIndex! < slices.length
-                                ? Fmt.moneyCompact(slices[_touchedIndex!].value)
+                            selected != null
+                                ? Fmt.moneyCompact(slices[selected].value)
                                 : Fmt.moneyCompact(profile.netWorth),
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 15),
@@ -138,7 +144,7 @@ class _AllocationDonutState extends ConsumerState<AllocationDonut> {
                                 child: Text(s.label,
                                     style: TextStyle(
                                         fontSize: 12,
-                                        fontWeight: _touchedIndex == i
+                                        fontWeight: selected == i
                                             ? FontWeight.w700
                                             : FontWeight.w400),
                                     overflow: TextOverflow.ellipsis),
