@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/market/data/market_repository.dart';
 import '../features/portfolio/data/portfolio_repository.dart';
+import '../features/portfolio/presentation/positions_bar.dart';
 import '../features/trading/data/trigger_alerts.dart';
 import 'format.dart';
 import 'theme.dart';
@@ -69,13 +70,25 @@ class ShellScreen extends ConsumerWidget {
               ],
             ),
             const VerticalDivider(width: 1),
-            Expanded(child: shell),
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(child: shell),
+                  const PositionsBar(),
+                ],
+              ),
+            ),
           ],
         ),
       );
     }
     return Scaffold(
-      body: shell,
+      body: Column(
+        children: [
+          Expanded(child: shell),
+          const PositionsBar(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: shell.currentIndex,
         onDestinationSelected: shell.goBranch,

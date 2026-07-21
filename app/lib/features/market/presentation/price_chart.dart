@@ -4,13 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
+import '../../portfolio/data/portfolio_repository.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
 import '../domain/market_event.dart';
 
+/// A price level drawn across the chart: your buy-in, TP, or SL.
+typedef ChartMarker = ({double price, Color color, String label});
+
 /// Trader-style price chart: line mode plus OHLC candles at selectable
-/// intervals (1m…1h), like the real thing. Candles are aggregated
-/// server-side from the raw 5-second ticks.
+/// intervals (1m…1h). Overlays your position's average cost and any active
+/// take-profit / stop-loss levels in both modes.
 class PriceChart extends ConsumerStatefulWidget {
   const PriceChart({super.key, required this.asset});
 
@@ -36,6 +40,26 @@ class _PriceChartState extends ConsumerState<PriceChart> {
 
   @override
   Widget build(BuildContext context) {
+    final asset = widget.asset;
+    final holding = ref
+        .watch(holdingsProvider)
+        .value
+        ?.where((h) => h.assetId == asset.id)
+        .firstOrNull;
+    final protection = (ref.watch(openOrdersProvider).value ?? const [])
+        .where((o) => o.assetId == asset.id);
+
+    final markers = <ChartMarker>[
+      if (holding != null)
+        (price: holding.avgCost, color: Colors.amber, label: 'Avg'),
+      for (final order in protection)
+        (
+          price: order.limitPrice,
+          color: order.isTakeProfit ? AppTheme.up : AppTheme.down,
+          label: order.isTakeProfit ? 'TP' : 'SL',
+        ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -51,8 +75,7 @@ class _PriceChartState extends ConsumerState<PriceChart> {
                     label: Text(label, style: const TextStyle(fontSize: 12)),
                     selected: _bucketSeconds == bucket,
                     visualDensity: VisualDensity.compact,
-                    onSelected: (_) =>
-                        setState(() => _bucketSeconds = bucket),
+                    onSelected: (_) => setState(() => _bucketSeconds = bucket),
                   ),
                 ),
             ],
@@ -61,19 +84,65 @@ class _PriceChartState extends ConsumerState<PriceChart> {
         const SizedBox(height: 8),
         Expanded(
           child: _bucketSeconds == null
-              ? _LineMode(asset: widget.asset)
-              : _CandleMode(asset: widget.asset, bucketSeconds: _bucketSeconds!),
+              ? _LineMode(asset: asset, markers: markers)
+              : _CandleMode(
+                  asset: asset,
+                  bucketSeconds: _bucketSeconds!,
+                  markers: markers,
+                ),
         ),
+        if (markers.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 4),
+            child: Wrap(
+              spacing: 14,
+              children: [
+                for (final marker in markers)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 2,
+                        color: marker.color,
+                        margin: const EdgeInsets.only(right: 4),
+                      ),
+                      Text(
+                        '${marker.label} ${Fmt.money(marker.price)}',
+                        style:
+                            TextStyle(fontSize: 11, color: marker.color),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
       ],
     );
   }
 }
 
+/// Y-range covering both the data and every marker, with breathing room.
+(double, double) _yRange(Iterable<double> dataValues, List<ChartMarker> markers) {
+  final values = [...dataValues, for (final m in markers) m.price];
+  var lo = values.reduce((a, b) => a < b ? a : b);
+  var hi = values.reduce((a, b) => a > b ? a : b);
+  final pad = (hi - lo) * 0.08 + hi * 0.001;
+  lo -= pad;
+  hi += pad;
+  return (lo <= 0 ? 0.01 : lo, hi);
+}
+
 class _CandleMode extends ConsumerWidget {
-  const _CandleMode({required this.asset, required this.bucketSeconds});
+  const _CandleMode({
+    required this.asset,
+    required this.bucketSeconds,
+    required this.markers,
+  });
 
   final Asset asset;
   final int bucketSeconds;
+  final List<ChartMarker> markers;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -97,6 +166,13 @@ class _CandleMode extends ConsumerWidget {
           close: c.close,
         ),
     ];
+    final (minY, maxY) = _yRange(
+      candles.expand((c) => [c.low, c.high]),
+      markers,
+    );
+    // Markers as thin horizontal bands (candlestick charts support range
+    // annotations, not extra lines); the legend below carries the values.
+    final bandHalf = (maxY - minY) * 0.0025;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -107,6 +183,18 @@ class _CandleMode extends ConsumerWidget {
           return CandlestickChart(
             CandlestickChartData(
               candlestickSpots: spots,
+              minY: minY,
+              maxY: maxY,
+              rangeAnnotations: RangeAnnotations(
+                horizontalRangeAnnotations: [
+                  for (final marker in markers)
+                    HorizontalRangeAnnotation(
+                      y1: marker.price - bandHalf,
+                      y2: marker.price + bandHalf,
+                      color: marker.color.withValues(alpha: 0.55),
+                    ),
+                ],
+              ),
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
@@ -174,9 +262,10 @@ class _CandleMode extends ConsumerWidget {
 }
 
 class _LineMode extends ConsumerWidget {
-  const _LineMode({required this.asset});
+  const _LineMode({required this.asset, required this.markers});
 
   final Asset asset;
+  final List<ChartMarker> markers;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -194,14 +283,36 @@ class _LineMode extends ConsumerWidget {
     }
     final rising = points.last.price >= points.first.price;
     final color = rising ? AppTheme.up : AppTheme.down;
+    final (minY, maxY) = _yRange(points.map((p) => p.price), markers);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: LineChart(
         LineChartData(
+          minY: minY,
+          maxY: maxY,
           gridData: const FlGridData(show: false),
           titlesData: const FlTitlesData(show: false),
           borderData: FlBorderData(show: false),
+          extraLinesData: ExtraLinesData(
+            horizontalLines: [
+              for (final marker in markers)
+                HorizontalLine(
+                  y: marker.price,
+                  color: marker.color.withValues(alpha: 0.85),
+                  strokeWidth: 1,
+                  dashArray: [6, 4],
+                  label: HorizontalLineLabel(
+                    show: true,
+                    alignment: Alignment.topLeft,
+                    padding: const EdgeInsets.only(left: 2, bottom: 2),
+                    style: TextStyle(fontSize: 10, color: marker.color),
+                    labelResolver: (line) =>
+                        '${marker.label} ${Fmt.money(marker.price)}',
+                  ),
+                ),
+            ],
+          ),
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
               getTooltipItems: (touched) => [

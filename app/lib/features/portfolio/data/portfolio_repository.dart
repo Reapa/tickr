@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -77,12 +79,52 @@ class PortfolioRepository {
 
   final SupabaseClient _client;
 
-  /// Live positions via Supabase's table stream (initial rows + changes).
-  Stream<List<Holding>> watchHoldings(String userId) => _client
-      .from('holdings')
-      .stream(primaryKey: ['user_id', 'asset_id'])
-      .eq('user_id', userId)
-      .map((rows) => rows.map(Holding.fromJson).toList());
+  /// Live positions: authoritative refetch on every Realtime change.
+  /// (Deliberately not .stream() — its client-side merge can duplicate rows
+  /// when an INSERT event races the initial fetch; a refetch can't.)
+  Stream<List<Holding>> watchHoldings(String userId) {
+    final controller = StreamController<List<Holding>>();
+    RealtimeChannel? channel;
+    Timer? debounce;
+
+    Future<void> refresh() async {
+      try {
+        final rows = await _client
+            .from('holdings')
+            .select('asset_id, quantity, avg_cost')
+            .order('asset_id');
+        controller.add(rows.map(Holding.fromJson).toList());
+      } catch (error, stack) {
+        controller.addError(error, stack);
+      }
+    }
+
+    controller.onListen = () {
+      refresh();
+      channel = _client
+          .channel('holdings-$userId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'holdings',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: userId,
+            ),
+            callback: (_) {
+              debounce?.cancel();
+              debounce = Timer(const Duration(milliseconds: 250), refresh);
+            },
+          )
+          .subscribe();
+    };
+    controller.onCancel = () {
+      debounce?.cancel();
+      if (channel != null) _client.removeChannel(channel!);
+    };
+    return controller.stream;
+  }
 
   Future<List<LedgerEntry>> fetchLedger({int limit = 50}) async {
     final rows = await _client
