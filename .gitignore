@@ -27,3 +27,6 @@ supabase/.branches/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local-only admin panel (holds DB credentials — never publish)
+admin/
