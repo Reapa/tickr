@@ -49,6 +49,38 @@ One-time setup on a new repo:
 - Enable Pages with the **GitHub Actions** source (Settings → Pages), then push to
   `main` (or run the workflow manually). Nothing else to configure.
 
+## Making updates (dev → live)
+
+Development happens against the **local** Supabase (`supabase start` in WSL) — fast
+and resettable. `flutter run` uses it by default. The friend-facing site uses the
+**cloud** project. Two separate databases; you promote changes when ready.
+
+There are two independent things to ship:
+
+**1. App / UI changes** (anything in `app/`)
+```
+git push origin main
+```
+GitHub Actions rebuilds and redeploys the web app to Pages automatically (~4 min).
+Nothing else to do.
+
+**2. Database changes** (new files in `supabase/migrations/`)
+```
+# test locally first
+supabase db reset
+# then apply the new migrations to the live project
+supabase db push --db-url "<session-pooler URL from admin/.env>"
+```
+Not automatic — run it whenever a change adds/edits a migration. (`db push` only
+applies migrations the cloud hasn't seen yet.)
+
+A full feature that touches both = do both (order doesn't matter, but push DB first
+if the app relies on a new column/RPC).
+
+**Git auth:** the credential helper is Git Credential Manager. Do one interactive
+`git push` (a browser opens to log into GitHub, stored securely afterward); every
+push after that — by you or from a dev session — is non-interactive.
+
 ## Notes / caveats for the current test deploy
 
 - Deep-link refreshes fall back to `404.html` (a copy of `index.html`), so the SPA
