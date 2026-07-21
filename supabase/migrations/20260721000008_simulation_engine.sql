@@ -185,6 +185,14 @@ begin
    where not exists (select 1 from public.holdings h where h.user_id = p.id)
      and p.net_worth <> p.cash_balance;
 
+  -- Portfolio-value-over-time history (table in migration 12; plpgsql binds
+  -- at runtime, after all migrations are applied).
+  insert into public.net_worth_history (user_id, net_worth)
+  select id, net_worth from public.profiles;
+
+  delete from public.net_worth_history
+   where tick_at < now() - make_interval(days => v_retention::int);
+
   -- 6. Competition upkeep (defined in migration 10).
   perform game.update_season_scores();
   perform game.resolve_seasons();
