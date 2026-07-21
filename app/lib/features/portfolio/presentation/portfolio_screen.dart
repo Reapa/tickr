@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/education.dart';
+import '../../../core/brand.dart';
 import '../../../core/format.dart';
 import '../../../core/sector_colors.dart';
 import '../../../core/theme.dart';
@@ -41,8 +42,8 @@ class PortfolioScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Portfolio'),
+      appBar: tickrAppBar(
+        title: 'Portfolio',
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 12),

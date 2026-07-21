@@ -53,10 +53,10 @@ class PositionsBar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
-                  _Metric(label: 'NET', value: Fmt.moneyCompact(profile.netWorth)),
-                  const SizedBox(width: 14),
+                  _Metric(label: 'NET WORTH', value: Fmt.moneyCompact(profile.netWorth)),
+                  const _BarDivider(),
                   _Metric(label: 'CASH', value: Fmt.moneyCompact(profile.cashBalance)),
-                  const SizedBox(width: 14),
+                  const _BarDivider(),
                   _Metric(
                     label: 'TODAY',
                     value: todayChange == null
@@ -66,8 +66,9 @@ class PositionsBar extends ConsumerWidget {
                         ? null
                         : AppTheme.changeColor(todayChange),
                   ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right, size: 16),
+                  const SizedBox(width: 2),
+                  Icon(Icons.chevron_right,
+                      size: 16, color: Colors.grey.shade600),
                 ],
               ),
             ),
@@ -101,6 +102,21 @@ class PositionsBar extends ConsumerWidget {
   }
 }
 
+/// A hairline separator between finance metrics.
+class _BarDivider extends StatelessWidget {
+  const _BarDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 22,
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      color: AppTheme.hairline,
+    );
+  }
+}
+
 /// A stacked LABEL / value pair for the finances strip.
 class _Metric extends StatelessWidget {
   const _Metric({required this.label, required this.value, this.color});
@@ -118,11 +134,16 @@ class _Metric extends StatelessWidget {
         Text(label,
             style: TextStyle(
                 fontSize: 8,
-                letterSpacing: 0.5,
+                letterSpacing: 0.8,
+                fontWeight: FontWeight.w600,
                 color: Colors.grey.shade500)),
+        const SizedBox(height: 1),
         Text(value,
             style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: color,
+                fontFeatures: const [FontFeature.tabularFigures()])),
       ],
     );
   }

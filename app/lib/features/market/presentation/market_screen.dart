@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/brand.dart';
 import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/widgets/async_view.dart';
@@ -28,8 +29,8 @@ class MarketScreen extends ConsumerWidget {
     return DefaultTabController(
       length: 6,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Market'),
+        appBar: tickrAppBar(
+          title: 'Market',
           actions: const [
             Padding(
               padding: EdgeInsets.only(right: 12),

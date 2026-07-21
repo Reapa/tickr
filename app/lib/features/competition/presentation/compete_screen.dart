@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/brand.dart';
 import '../../../core/format.dart';
 import '../../../core/supabase_providers.dart';
 import '../../../core/theme.dart';
@@ -20,8 +21,8 @@ class CompeteScreen extends ConsumerWidget {
     return DefaultTabController(
       length: 4,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Compete'),
+        appBar: tickrAppBar(
+          title: 'Compete',
           actions: [
             IconButton(
               icon: const Icon(Icons.group_add_outlined),

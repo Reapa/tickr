@@ -104,6 +104,28 @@ class TickrLogo extends StatelessWidget {
   }
 }
 
+/// A consistent app bar carrying the Tickr mark next to the section title —
+/// keeps the brand present on every screen.
+AppBar tickrAppBar({
+  required String title,
+  List<Widget>? actions,
+  PreferredSizeWidget? bottom,
+}) {
+  return AppBar(
+    titleSpacing: 12,
+    title: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const TickrMark(size: 24),
+        const SizedBox(width: 10),
+        Text(title),
+      ],
+    ),
+    actions: actions,
+    bottom: bottom,
+  );
+}
+
 /// The animated splash / sign-in hero: logo + slogan with a subtle live feel.
 class TickrHero extends StatelessWidget {
   const TickrHero({super.key});

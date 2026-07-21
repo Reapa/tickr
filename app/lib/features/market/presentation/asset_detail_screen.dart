@@ -171,15 +171,22 @@ class _TradeBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final open = asset.isMarketOpenNow;
-    final String? note = !open
-        ? 'Market closed · ${asset.reopensHint}'
+    // A single, non-clipping status line.
+    final (statusLine, statusColor) = !open
+        ? ('Market closed · ${asset.reopensHint}', Colors.orange)
         : hasPosition
-            ? null
-            : "You don't own ${asset.symbol} yet — Buy to open a position";
+            ? ('Market open · ${asset.marketHoursLabel}', AppTheme.up)
+            : (
+                "Tap Buy to open a position in ${asset.symbol}",
+                Colors.grey.shade400
+              );
 
     return Container(
-      color: AppTheme.background,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(top: BorderSide(color: AppTheme.hairline)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: SafeArea(
         top: false,
         child: Column(
@@ -196,51 +203,47 @@ class _TradeBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  open
-                      ? 'Market open · ${asset.marketHoursLabel}'
-                      : (note ?? 'Market closed'),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: open ? AppTheme.up : Colors.orange,
-                      ),
-                ),
-                const Spacer(),
-                if (open && note != null)
-                  Flexible(
-                    child: Text(
-                      note,
-                      textAlign: TextAlign.right,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                Expanded(
+                  child: Text(
+                    statusLine,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: statusColor),
                   ),
+                ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: FilledButton(
-                    style:
-                        FilledButton.styleFrom(backgroundColor: AppTheme.up),
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.up,
+                        foregroundColor: Colors.black),
+                    icon: const Icon(Icons.arrow_upward, size: 18),
                     onPressed: open
                         ? () => showOrderTicket(context, asset, 'buy')
                         : null,
-                    child: const Text('Buy'),
+                    label: const Text('Buy'),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: FilledButton(
-                    style:
-                        FilledButton.styleFrom(backgroundColor: AppTheme.down),
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.down,
+                        foregroundColor: Colors.white),
+                    icon: const Icon(Icons.arrow_downward, size: 18),
                     onPressed: open && hasPosition
                         ? () => showOrderTicket(context, asset, 'sell')
                         : null,
-                    child: const Text('Sell'),
+                    label: const Text('Sell'),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(child: _LeverageButton(asset: asset)),
               ],
             ),
@@ -263,13 +266,14 @@ class _LeverageButton extends ConsumerWidget {
         ref.watch(unlockedClassesProvider).value?.contains('margin') ?? false;
     final open = asset.isMarketOpenNow;
     return FilledButton(
-      style: FilledButton.styleFrom(backgroundColor: Colors.amber.shade700),
+      style: FilledButton.styleFrom(
+          backgroundColor: AppTheme.gold, foregroundColor: Colors.black),
       onPressed: !open
           ? null
           : () => unlocked
               ? showLeverageSheet(context, asset)
               : _offerUnlock(context, ref),
-      child: Text(unlocked ? '⚡ Leverage' : '⚡ 🔒'),
+      child: Text(unlocked ? '⚡ Leverage' : '⚡ Unlock'),
     );
   }
 
