@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/theme.dart';
+import '../../../core/brand.dart';
 import '../data/auth_repository.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -76,19 +76,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.candlestick_chart,
-                      size: 64, color: AppTheme.up),
-                  const SizedBox(height: 12),
-                  Text(
-                    'TradingGame',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  Text(
-                    'A live market. Fake money. Real lessons.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
+                  const TickrHero(),
                   const SizedBox(height: 32),
                   if (_isSignUp) ...[
                     TextFormField(

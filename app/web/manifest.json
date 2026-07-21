@@ -1,11 +1,11 @@
 {
-    "name": "trading_game",
-    "short_name": "trading_game",
+    "name": "Tickr — Trade. Compete. Rise.",
+    "short_name": "Tickr",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0A0D14",
+    "theme_color": "#0A0D14",
+    "description": "Tickr — a live simulated market where fake money earns real glory. Trade, compete, and rise up the leaderboard.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

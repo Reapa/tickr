@@ -6,6 +6,9 @@ abstract final class AppTheme {
   static const Color up = Color(0xFF26C281);
   static const Color down = Color(0xFFE84C3D);
   static const Color accent = Color(0xFF4DA3FF);
+
+  /// Tickr signature (electric cyan-green) — seeds the Material color scheme.
+  static const Color brand = Color(0xFF3DE1C4);
   static const Color surface = Color(0xFF12161F);
   static const Color background = Color(0xFF0A0D14);
 
@@ -13,7 +16,7 @@ abstract final class AppTheme {
     final base = ThemeData(
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: accent,
+        seedColor: brand,
         brightness: Brightness.dark,
         surface: surface,
       ),

@@ -22,7 +22,7 @@ class TradingGameApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
-      title: 'TradingGame',
+      title: 'Tickr',
       theme: AppTheme.dark(),
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
