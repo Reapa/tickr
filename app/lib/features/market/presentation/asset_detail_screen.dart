@@ -10,6 +10,7 @@ import '../../portfolio/data/portfolio_repository.dart';
 import '../../trading/presentation/order_ticket.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
+import '../domain/market_event.dart';
 import 'widgets.dart';
 
 class AssetDetailScreen extends ConsumerWidget {
@@ -66,7 +67,7 @@ class AssetDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          SizedBox(height: 220, child: _PriceChart(assetId: asset.id)),
+          SizedBox(height: 220, child: _PriceChart(asset: asset)),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Wrap(
@@ -169,17 +170,23 @@ class _Stat extends StatelessWidget {
 }
 
 class _PriceChart extends ConsumerWidget {
-  const _PriceChart({required this.assetId});
+  const _PriceChart({required this.asset});
 
-  final String assetId;
+  final Asset asset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(priceHistoryProvider(assetId));
-    final points = history.value;
-    if (points == null) {
+    final history = ref.watch(priceHistoryProvider(asset.id));
+    final fetched = history.value;
+    if (fetched == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    // History refreshes every 15s; the live price (updated every tick via
+    // Realtime) is appended so the chart's right edge never lags the header.
+    final points = [
+      ...fetched,
+      PricePoint(price: asset.currentPrice, time: DateTime.now()),
+    ];
     if (points.length < 2) {
       return const Center(child: Text('Chart appears after a few ticks…'));
     }

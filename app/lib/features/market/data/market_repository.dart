@@ -197,10 +197,13 @@ final openingPriceProvider = FutureProvider.family<double?, String>(
       ref.watch(marketRepositoryProvider).fetchOpeningPrice(assetId),
 );
 
-/// Price history for one asset, refreshed when the live price changes.
-final priceHistoryProvider =
-    FutureProvider.family<List<PricePoint>, String>((ref, assetId) {
-  // Re-fetch when a new tick lands for this asset.
-  ref.watch(livePricesProvider.select((prices) => prices[assetId]));
+/// Price history for one asset. Refreshes on a timer rather than by watching
+/// the live price: coupling a FutureProvider to the tick stream via select()
+/// can invalidate mid-build when a tab's TickerMode resumes ("setState during
+/// build"). The chart appends the live price itself for tick-level freshness.
+final priceHistoryProvider = FutureProvider.autoDispose
+    .family<List<PricePoint>, String>((ref, assetId) {
+  final timer = Timer(const Duration(seconds: 15), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
   return ref.watch(marketRepositoryProvider).fetchPriceHistory(assetId);
 });
