@@ -19,7 +19,7 @@ class CompeteScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: tickrAppBar(
           title: 'Compete',
@@ -31,6 +31,7 @@ class CompeteScreen extends ConsumerWidget {
             ),
           ],
           bottom: const TabBar(isScrollable: true, tabs: [
+            Tab(text: '🔴 Live'),
             Tab(text: 'Global'),
             Tab(text: 'Friends'),
             Tab(text: 'Season'),
@@ -38,11 +39,84 @@ class CompeteScreen extends ConsumerWidget {
           ]),
         ),
         body: const TabBarView(children: [
+          _ActivityTab(),
           _GlobalTab(),
           _FriendsTab(),
           _SeasonTab(),
           _ChallengesTab(),
         ]),
+      ),
+    );
+  }
+}
+
+/// The live "big trades" feed — social proof that the market is populated.
+class _ActivityTab extends ConsumerWidget {
+  const _ActivityTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final feed = ref.watch(activityFeedProvider);
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(activityFeedProvider),
+      child: AsyncView(
+        value: feed,
+        builder: (items) {
+          if (items.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                    'No big moves yet. Make one and you might headline the feed.',
+                    textAlign: TextAlign.center),
+              ),
+            );
+          }
+          return ListView.builder(
+            itemCount: items.length,
+            itemBuilder: (context, i) => _ActivityRow(item: items[i]),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({required this.item});
+
+  final ActivityItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppTheme.changeColor(item.isBuySide ? 1 : -1);
+    final verb = item.isLeverage
+        ? '${item.side == 'long' ? 'longed' : 'shorted'} ${item.leverage}×'
+        : (item.side == 'buy' ? 'bought' : 'sold');
+    return ListTile(
+      dense: true,
+      leading: Icon(
+        item.isLeverage
+            ? Icons.bolt
+            : (item.isBuySide ? Icons.arrow_upward : Icons.arrow_downward),
+        color: item.isLeverage ? AppTheme.gold : color,
+        size: 20,
+      ),
+      title: Text.rich(TextSpan(children: [
+        TextSpan(
+            text: item.trader,
+            style: const TextStyle(fontWeight: FontWeight.w800)),
+        TextSpan(text: ' $verb ', style: TextStyle(color: Colors.grey.shade400)),
+        TextSpan(
+            text: item.symbol,
+            style: TextStyle(fontWeight: FontWeight.w700, color: color)),
+      ])),
+      subtitle: Text(Fmt.timeAgo(item.at)),
+      trailing: Text(
+        Fmt.moneyCompact(item.notional),
+        style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontFeatures: [FontFeature.tabularFigures()]),
       ),
     );
   }

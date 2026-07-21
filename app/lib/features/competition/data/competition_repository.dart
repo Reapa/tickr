@@ -240,6 +240,46 @@ class CompetitionRepository {
         'p_challenge_id': challengeId,
         'p_accept': accept,
       });
+
+  Future<List<ActivityItem>> fetchActivity({int limit = 30}) async {
+    final rows = await _client
+        .rpc<List<dynamic>>('get_recent_activity', params: {'p_limit': limit});
+    return rows.cast<Map<String, dynamic>>().map(ActivityItem.fromJson).toList();
+  }
+}
+
+/// A notable move from the public activity feed.
+class ActivityItem {
+  const ActivityItem({
+    required this.at,
+    required this.trader,
+    required this.symbol,
+    required this.kind,
+    required this.side,
+    required this.notional,
+    required this.leverage,
+  });
+
+  factory ActivityItem.fromJson(Map<String, dynamic> json) => ActivityItem(
+        at: jsonDate(json['at']),
+        trader: json['trader'] as String,
+        symbol: json['symbol'] as String,
+        kind: json['kind'] as String, // spot | leverage
+        side: json['side'] as String,
+        notional: jsonDouble(json['notional']),
+        leverage: json['leverage'] == null ? null : jsonInt(json['leverage']),
+      );
+
+  final DateTime at;
+  final String trader;
+  final String symbol;
+  final String kind;
+  final String side;
+  final double notional;
+  final int? leverage;
+
+  bool get isLeverage => kind == 'leverage';
+  bool get isBuySide => side == 'buy' || side == 'long';
 }
 
 final competitionRepositoryProvider = Provider<CompetitionRepository>(
@@ -257,6 +297,14 @@ final friendsLeaderboardProvider = FutureProvider<List<LeaderboardEntry>>(
 final activeSeasonProvider = FutureProvider<Season?>(
   (ref) => ref.watch(competitionRepositoryProvider).fetchActiveSeason(),
 );
+
+/// Public activity feed, refreshed every 8s so it feels live.
+final activityFeedProvider =
+    FutureProvider.autoDispose<List<ActivityItem>>((ref) {
+  final timer = Timer(const Duration(seconds: 8), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+  return ref.watch(competitionRepositoryProvider).fetchActivity();
+});
 
 final seasonLeaderboardProvider =
     FutureProvider.family<List<LeaderboardEntry>, String>(
