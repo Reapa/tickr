@@ -22,10 +22,10 @@ class TopMovers extends ConsumerWidget {
     final top = movers.take(8).toList();
 
     return SizedBox(
-      height: 84,
+      height: 96,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         children: [
           for (final m in top) _MoverCard(mover: m),
         ],
@@ -48,7 +48,7 @@ class _MoverCard extends StatelessWidget {
       child: Container(
         width: 120,
         margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           gradient: LinearGradient(
