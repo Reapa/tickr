@@ -38,8 +38,10 @@ revoke all on all functions in schema public from anon, authenticated;
 revoke usage on schema game from anon, authenticated;
 
 -- Future objects: don't auto-grant to clients; RPC access is granted explicitly.
+-- (Postgres grants EXECUTE to PUBLIC on new functions by default — kill that too.)
+revoke execute on all functions in schema public from public;
 alter default privileges in schema public revoke all on tables from anon, authenticated;
-alter default privileges in schema public revoke execute on functions from anon, authenticated;
+alter default privileges in schema public revoke execute on functions from public, anon, authenticated;
 
 -- Public game data: full-row SELECT.
 grant select on public.asset_classes, public.price_ticks, public.seasons,

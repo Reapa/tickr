@@ -1,0 +1,62 @@
+# Supabase local development config.
+# If your CLI version complains about a key here, run `supabase init` and port
+# the [auth] provider blocks below into the regenerated file.
+project_id = "tradinggame"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000", "io.supabase.tradinggame://login-callback/"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+# OAuth providers. Set the secrets in supabase/.env (gitignored):
+#   SUPABASE_AUTH_GOOGLE_CLIENT_ID / SUPABASE_AUTH_GOOGLE_SECRET
+#   SUPABASE_AUTH_FACEBOOK_CLIENT_ID / SUPABASE_AUTH_FACEBOOK_SECRET
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+redirect_uri = ""
+
+[auth.external.facebook]
+enabled = true
+client_id = "env(SUPABASE_AUTH_FACEBOOK_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_FACEBOOK_SECRET)"
+redirect_uri = ""
+
+# Steam login is roadmap: Steam uses legacy OpenID 2.0, not OAuth. The seam is
+# a future edge function that verifies the OpenID assertion and mints a
+# Supabase session via signInWithIdToken/admin API. Nothing here blocks it.
+
+[edge_runtime]
+enabled = true
+
+[analytics]
+enabled = false
