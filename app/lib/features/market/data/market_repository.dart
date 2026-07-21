@@ -105,15 +105,27 @@ class MarketRepository {
   }
 
   /// Asset list that stays current: initial fetch + live price-tick folds.
+  ///
+  /// A tick advances ~30 assets at once, firing ~30 Realtime inserts in a
+  /// burst. Emitting per insert would rebuild the whole list ~30× every cycle
+  /// (the source of market-tab jank), so bursts are coalesced into one emit.
   Stream<List<Asset>> watchAssets() {
     final controller = StreamController<List<Asset>>();
     final byId = <String, Asset>{};
     RealtimeChannel? channel;
+    Timer? flush;
 
     void emit() {
       final list = byId.values.toList()
         ..sort((a, b) => a.symbol.compareTo(b.symbol));
       controller.add(list);
+    }
+
+    void scheduleEmit() {
+      flush ??= Timer(const Duration(milliseconds: 120), () {
+        flush = null;
+        emit();
+      });
     }
 
     controller.onListen = () async {
@@ -138,12 +150,13 @@ class MarketRepository {
               final existing = assetId == null ? null : byId[assetId];
               if (existing == null) return;
               byId[assetId!] = existing.withPrice(jsonDouble(record['price']));
-              emit();
+              scheduleEmit();
             },
           )
           .subscribe();
     };
     controller.onCancel = () {
+      flush?.cancel();
       if (channel != null) _client.removeChannel(channel!);
     };
     return controller.stream;

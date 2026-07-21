@@ -60,51 +60,186 @@ class _LeaderboardList extends ConsumerWidget {
     if (entries.isEmpty) {
       return const Center(child: Text('Nobody here yet.'));
     }
-    return ListView.builder(
-      itemCount: entries.length,
-      itemBuilder: (context, index) {
-        final entry = entries[index];
-        final isMe = entry.userId == myId;
-        return ListTile(
-          selected: isMe,
-          leading: _RankBadge(rank: entry.rank),
-          title: Text(
-            '${entry.displayName}${isMe ? ' (you)' : ''}',
-            style: TextStyle(fontWeight: isMe ? FontWeight.w700 : null),
+    final podium = entries.take(3).toList();
+    final rest = entries.skip(3).toList();
+    final me = entries.where((e) => e.userId == myId).firstOrNull;
+    final meOnPodium = me != null && me.rank <= 3;
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            children: [
+              _Podium(entries: podium, isPct: isPct, myId: myId),
+              const SizedBox(height: 8),
+              for (final entry in rest)
+                _LeaderRow(entry: entry, isPct: isPct, isMe: entry.userId == myId),
+              const SizedBox(height: 8),
+            ],
           ),
-          subtitle: Text('Level ${entry.level}'),
-          trailing: Text(
-            isPct ? Fmt.pct(entry.value) : Fmt.moneyCompact(entry.value),
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: isPct ? AppTheme.changeColor(entry.value) : null,
+        ),
+        // Pinned "you" row so your standing is always visible.
+        if (me != null && !meOnPodium)
+          Container(
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceHigh,
+              border: Border(top: BorderSide(color: AppTheme.brand.withValues(alpha: 0.4))),
             ),
+            child: _LeaderRow(entry: me, isPct: isPct, isMe: true),
           ),
-        );
-      },
+      ],
     );
   }
 }
 
-class _RankBadge extends StatelessWidget {
-  const _RankBadge({required this.rank});
+/// A single non-podium leaderboard row.
+class _LeaderRow extends StatelessWidget {
+  const _LeaderRow(
+      {required this.entry, required this.isPct, required this.isMe});
 
-  final int rank;
+  final LeaderboardEntry entry;
+  final bool isPct;
+  final bool isMe;
 
   @override
   Widget build(BuildContext context) {
-    final medal = switch (rank) {
-      1 => '🥇',
-      2 => '🥈',
-      3 => '🥉',
-      _ => null,
-    };
-    return CircleAvatar(
-      radius: 16,
-      child: Text(medal ?? '$rank', style: const TextStyle(fontSize: 13)),
+    return ListTile(
+      dense: true,
+      selected: isMe,
+      leading: SizedBox(
+        width: 34,
+        child: Text('#${entry.rank}',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: isMe ? AppTheme.brand : Colors.grey.shade500,
+                fontFeatures: const [FontFeature.tabularFigures()])),
+      ),
+      title: Text('${entry.displayName}${isMe ? ' (you)' : ''}',
+          style: TextStyle(fontWeight: isMe ? FontWeight.w800 : FontWeight.w500)),
+      subtitle: Text('Level ${entry.level}'),
+      trailing: Text(
+        isPct ? Fmt.pct(entry.value) : Fmt.moneyCompact(entry.value),
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontFeatures: const [FontFeature.tabularFigures()],
+          color: isPct ? AppTheme.changeColor(entry.value) : null,
+        ),
+      ),
     );
   }
 }
+
+/// Top-3 podium — 1st centered and tallest, flanked by 2nd and 3rd.
+class _Podium extends StatelessWidget {
+  const _Podium({required this.entries, required this.isPct, this.myId});
+
+  final List<LeaderboardEntry> entries;
+  final bool isPct;
+  final String? myId;
+
+  @override
+  Widget build(BuildContext context) {
+    LeaderboardEntry? at(int rank) =>
+        entries.where((e) => e.rank == rank).firstOrNull;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 20, 12, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+              child: _PodiumSpot(
+                  entry: at(2), rank: 2, isPct: isPct, myId: myId, height: 92)),
+          Expanded(
+              child: _PodiumSpot(
+                  entry: at(1), rank: 1, isPct: isPct, myId: myId, height: 120)),
+          Expanded(
+              child: _PodiumSpot(
+                  entry: at(3), rank: 3, isPct: isPct, myId: myId, height: 74)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PodiumSpot extends StatelessWidget {
+  const _PodiumSpot({
+    required this.entry,
+    required this.rank,
+    required this.isPct,
+    required this.height,
+    this.myId,
+  });
+
+  final LeaderboardEntry? entry;
+  final int rank;
+  final bool isPct;
+  final double height;
+  final String? myId;
+
+  static const _medals = {1: '🥇', 2: '🥈', 3: '🥉'};
+  static const _colors = {1: AppTheme.gold, 2: Color(0xFFB9C4D0), 3: Color(0xFFCD8E5E)};
+
+  @override
+  Widget build(BuildContext context) {
+    final e = entry;
+    final color = _colors[rank]!;
+    if (e == null) {
+      return SizedBox(height: height + 78);
+    }
+    final isMe = e.userId == myId;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(_medals[rank]!, style: const TextStyle(fontSize: 24)),
+          const SizedBox(height: 4),
+          CircleAvatar(
+            radius: rank == 1 ? 26 : 22,
+            backgroundColor: color.withValues(alpha: 0.2),
+            child: Text(e.displayName.characters.first.toUpperCase(),
+                style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: rank == 1 ? 20 : 16)),
+          ),
+          const SizedBox(height: 6),
+          Text(isMe ? 'You' : e.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 12.5)),
+          Text(isPct ? Fmt.pct(e.value) : Fmt.moneyCompact(e.value),
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isPct ? AppTheme.changeColor(e.value) : color)),
+          const SizedBox(height: 6),
+          Container(
+            height: height,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [color.withValues(alpha: 0.32), color.withValues(alpha: 0.06)],
+              ),
+              border: Border.all(color: color.withValues(alpha: 0.4)),
+            ),
+            alignment: Alignment.topCenter,
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('$rank',
+                style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _GlobalTab extends ConsumerWidget {
   const _GlobalTab();

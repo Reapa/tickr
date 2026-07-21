@@ -7,9 +7,10 @@ import '../../../core/theme.dart';
 import '../data/market_repository.dart';
 
 /// Recent close prices for sparklines: 24 five-minute candles (~2h),
-/// refreshed every 90s — cheap enough to draw on every market-list tile.
+/// refreshed every 90s. Deliberately NOT autoDispose so switching market
+/// tabs reuses the cached series instead of refetching one RPC per tile.
 final sparklineProvider =
-    FutureProvider.autoDispose.family<List<double>, String>((ref, assetId) {
+    FutureProvider.family<List<double>, String>((ref, assetId) {
   final timer = Timer(const Duration(seconds: 90), ref.invalidateSelf);
   ref.onDispose(timer.cancel);
   return ref
