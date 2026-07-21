@@ -7,6 +7,7 @@ import '../../../core/format.dart';
 import '../../../core/supabase_providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/async_view.dart';
+import '../../profile/data/profile_repository.dart';
 import '../../social/data/social_repository.dart';
 import '../data/competition_repository.dart';
 
@@ -372,17 +373,7 @@ class _SeasonTab extends ConsumerWidget {
         final board = ref.watch(seasonLeaderboardProvider(s.id));
         return Column(
           children: [
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.emoji_events, color: Colors.amber),
-                title: Text(s.name),
-                subtitle: Text(
-                  'Ranked by % return · ends in ${s.remaining.inDays}d '
-                  '${s.remaining.inHours % 24}h · top 10% win an exclusive '
-                  'cosmetic',
-                ),
-              ),
-            ),
+            _SeasonHeader(season: s),
             Expanded(
               child: AsyncView(
                 value: board,
@@ -393,6 +384,119 @@ class _SeasonTab extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Season banner: a countdown ring, the format, and what the top finishers win.
+class _SeasonHeader extends StatelessWidget {
+  const _SeasonHeader({required this.season});
+
+  final Season season;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = season.endsAt.difference(season.startsAt).inSeconds;
+    final elapsed = DateTime.now().difference(season.startsAt).inSeconds;
+    final progress = total <= 0 ? 1.0 : (elapsed / total).clamp(0.0, 1.0);
+    final rem = season.remaining;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 64,
+                        height: 64,
+                        child: CircularProgressIndicator(
+                          value: 1 - progress,
+                          strokeWidth: 5,
+                          backgroundColor: AppTheme.hairline,
+                          valueColor: const AlwaysStoppedAnimation(AppTheme.gold),
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('${rem.inDays}d',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w800, fontSize: 16)),
+                          Text('${rem.inHours % 24}h left',
+                              style: TextStyle(
+                                  fontSize: 8, color: Colors.grey.shade400)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(season.name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 16)),
+                      const SizedBox(height: 2),
+                      Text('Ranked by % return — everyone starts even',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade400)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 22),
+            Text('SEASON REWARDS',
+                style: TextStyle(
+                    fontSize: 9,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade500)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: const [
+                _RewardChip(icon: '🥇', label: r'$5,000'),
+                _RewardChip(icon: '🥈', label: r'$2,500'),
+                _RewardChip(icon: '🥉', label: r'$1,000'),
+                _RewardChip(icon: '🏆', label: 'Top 10% · exclusive frame + 100💎'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RewardChip extends StatelessWidget {
+  const _RewardChip({required this.icon, required this.label});
+
+  final String icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.gold.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.gold.withValues(alpha: 0.3)),
+      ),
+      child: Text('$icon  $label',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -513,64 +617,116 @@ class _ChallengeTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final opponent =
-        nameById[challenge.opponentId(myId)] ?? 'Unknown trader';
-    final iAmChallenger = challenge.challengerId == myId;
-    final myReturn = iAmChallenger
-        ? challenge.challengerReturn
-        : challenge.challengeeReturn;
-    final theirReturn = iAmChallenger
-        ? challenge.challengeeReturn
-        : challenge.challengerReturn;
+    final opponent = nameById[challenge.opponentId(myId)] ?? 'Unknown trader';
 
-    final subtitle = switch (challenge.status) {
+    // My live return (active challenges): current net worth vs my snapshot.
+    final myNw = ref.watch(myProfileProvider).value?.netWorth;
+    final myStart = challenge.myStartNw(myId);
+    final myFinal =
+        challenge.challengerId == myId ? challenge.challengerReturn : challenge.challengeeReturn;
+    final theirFinal =
+        challenge.challengerId == myId ? challenge.challengeeReturn : challenge.challengerReturn;
+    final myLive = (myStart != null && myStart > 0 && myNw != null)
+        ? myNw / myStart - 1
+        : null;
+
+    final iWon = challenge.winnerId == myId;
+    final completed = challenge.status == 'completed';
+
+    // Status pill
+    final (pillText, pillColor) = switch (challenge.status) {
       'pending' => challenge.isIncomingFor(myId)
-          ? 'Incoming challenge — accept?'
-          : 'Waiting for $opponent to accept',
-      'active' =>
-        'Live · ends ${challenge.endsAt != null ? Fmt.timeAgo(challenge.endsAt!).replaceAll(' ago', '') : ''} · highest % return wins',
+          ? ('INCOMING', AppTheme.gold)
+          : ('SENT', Colors.grey),
+      'active' => ('LIVE', AppTheme.down),
       'completed' => challenge.winnerId == null
-          ? 'Tie! You: ${Fmt.pct(myReturn ?? 0)} · $opponent: ${Fmt.pct(theirReturn ?? 0)}'
-          : challenge.winnerId == myId
-              ? 'You won! ${Fmt.pct(myReturn ?? 0)} vs ${Fmt.pct(theirReturn ?? 0)} (+\$500)'
-              : '$opponent won: ${Fmt.pct(theirReturn ?? 0)} vs ${Fmt.pct(myReturn ?? 0)}',
-      'declined' => 'Declined',
-      _ => 'Expired',
+          ? ('TIE', Colors.grey)
+          : (iWon ? ('WON +\$500' , AppTheme.up) : ('LOST', AppTheme.down)),
+      'declined' => ('DECLINED', Colors.grey),
+      _ => ('EXPIRED', Colors.grey),
     };
 
     return Card(
-      child: ListTile(
-        leading: Icon(
-          switch (challenge.status) {
-            'active' => Icons.timer,
-            'completed' => challenge.winnerId == myId
-                ? Icons.emoji_events
-                : Icons.sentiment_dissatisfied,
-            _ => Icons.hourglass_empty,
-          },
-          color: challenge.status == 'completed' && challenge.winnerId == myId
-              ? Colors.amber
-              : null,
-        ),
-        title: Text('vs $opponent · ${challenge.duration}'),
-        subtitle: Text(subtitle),
-        trailing: challenge.isIncomingFor(myId)
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Text('${challenge.duration} head-to-head',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade400)),
+                const Spacer(),
+                _StatusPill(text: pillText, color: pillColor),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _Fighter(
+                  name: 'You',
+                  ret: completed ? myFinal : myLive,
+                  highlight: completed && iWon,
+                  pending: !completed && challenge.status != 'active',
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('VS',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Colors.grey.shade600)),
+                ),
+                _Fighter(
+                  name: opponent,
+                  // Opponent's live return is hidden until the reveal.
+                  ret: completed ? theirFinal : null,
+                  highlight: completed && !iWon && challenge.winnerId != null,
+                  pending: !completed,
+                  hiddenLive: challenge.status == 'active',
+                ),
+              ],
+            ),
+            if (challenge.status == 'active' && challenge.endsAt != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                  'Ends in ${_short(challenge.endsAt!.difference(DateTime.now()))} · highest % return wins',
+                  style:
+                      TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ],
+            if (challenge.isIncomingFor(myId)) ...[
+              const SizedBox(height: 10),
+              Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.check, color: AppTheme.up),
-                    onPressed: () => _respond(context, ref, true),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _respond(context, ref, false),
+                      child: const Text('Decline'),
+                    ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppTheme.down),
-                    onPressed: () => _respond(context, ref, false),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.up,
+                          foregroundColor: Colors.black),
+                      onPressed: () => _respond(context, ref, true),
+                      child: const Text('Accept'),
+                    ),
                   ),
                 ],
-              )
-            : null,
+              ),
+            ],
+          ],
+        ),
       ),
     );
+  }
+
+  static String _short(Duration d) {
+    if (d.isNegative) return 'now';
+    if (d.inDays > 0) return '${d.inDays}d ${d.inHours % 24}h';
+    if (d.inHours > 0) return '${d.inHours}h ${d.inMinutes % 60}m';
+    return '${d.inMinutes}m';
   }
 
   Future<void> _respond(
@@ -585,5 +741,88 @@ class _ChallengeTile extends ConsumerWidget {
             .showSnackBar(SnackBar(content: Text('$error')));
       }
     }
+  }
+}
+
+/// One side of a head-to-head card: avatar, name, and % return (or a hidden
+/// placeholder while the race is live / not yet started).
+class _Fighter extends StatelessWidget {
+  const _Fighter({
+    required this.name,
+    required this.ret,
+    required this.highlight,
+    required this.pending,
+    this.hiddenLive = false,
+  });
+
+  final String name;
+  final double? ret;
+  final bool highlight;
+  final bool pending;
+  final bool hiddenLive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ret == null ? Colors.grey : AppTheme.changeColor(ret!);
+    return Expanded(
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: highlight
+                ? AppTheme.gold.withValues(alpha: 0.25)
+                : AppTheme.surfaceHigh,
+            child: highlight
+                ? const Text('👑', style: TextStyle(fontSize: 18))
+                : Text(name.characters.first.toUpperCase(),
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(height: 6),
+          Text(name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 12.5)),
+          const SizedBox(height: 2),
+          Text(
+            hiddenLive
+                ? '···'
+                : pending
+                    ? '—'
+                    : Fmt.pct(ret ?? 0),
+            style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                color: color,
+                fontFeatures: const [FontFeature.tabularFigures()]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 10,
+              letterSpacing: 0.5,
+              fontWeight: FontWeight.w800,
+              color: color)),
+    );
   }
 }

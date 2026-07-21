@@ -65,6 +65,8 @@ class Challenge {
     required this.endsAt,
     required this.challengerReturn,
     required this.challengeeReturn,
+    required this.challengerStartNw,
+    required this.challengeeStartNw,
     required this.winnerId,
     required this.createdAt,
   });
@@ -82,6 +84,12 @@ class Challenge {
         challengeeReturn: json['challengee_return'] == null
             ? null
             : jsonDouble(json['challengee_return']),
+        challengerStartNw: json['challenger_start_nw'] == null
+            ? null
+            : jsonDouble(json['challenger_start_nw']),
+        challengeeStartNw: json['challengee_start_nw'] == null
+            ? null
+            : jsonDouble(json['challengee_start_nw']),
         winnerId: json['winner_id'] as String?,
         createdAt: jsonDate(json['created_at']),
       );
@@ -94,11 +102,16 @@ class Challenge {
   final DateTime? endsAt;
   final double? challengerReturn;
   final double? challengeeReturn;
+  final double? challengerStartNw;
+  final double? challengeeStartNw;
   final String? winnerId;
   final DateTime createdAt;
 
   String opponentId(String me) =>
       challengerId == me ? challengeeId : challengerId;
+
+  double? myStartNw(String me) =>
+      challengerId == me ? challengerStartNw : challengeeStartNw;
 
   bool isIncomingFor(String me) => status == 'pending' && challengeeId == me;
 }
