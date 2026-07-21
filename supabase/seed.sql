@@ -15,30 +15,31 @@ insert into public.asset_classes (id, name, description, unlock_cost, is_enabled
 -- Stocks: 16 across 5 sectors. Volatility/liquidity tuned per personality:
 -- tech runs hot, utilities sleep, small caps whip around on thin liquidity.
 -- ----------------------------------------------------------------------------
+-- Names are parodies of familiar companies — recognizable, but fictional.
 insert into public.assets
   (symbol, name, class_id, sector, description,
    current_price, fair_value, drift, base_volatility, liquidity, impact_coef, reversion_speed, spread) values
   -- tech
-  ('NBLA', 'Nebula Systems',      'stocks', 'tech', 'Cloud infrastructure for orbital data centers.',            182.50, 182.50, 0.09, 0.45,  800000, 0.05, 0.25, 0.0020),
-  ('QRYO', 'Qryo Computing',      'stocks', 'tech', 'Cryogenic quantum processors, mostly hype.',                 64.20,  64.20, 0.12, 0.70,  300000, 0.08, 0.20, 0.0040),
-  ('PXLF', 'Pixelforge Games',    'stocks', 'tech', 'Indie game publisher with one giant hit.',                   28.75,  28.75, 0.07, 0.55,  250000, 0.07, 0.25, 0.0035),
-  ('DRNE', 'Dronewave Logistics', 'stocks', 'tech', 'Autonomous drone delivery network.',                         41.10,  41.10, 0.08, 0.50,  350000, 0.06, 0.25, 0.0030),
+  ('GOGL', 'Googol',              'stocks', 'tech', 'Search, ads, and a graveyard of side projects.',            182.50, 182.50, 0.09, 0.45,  800000, 0.05, 0.25, 0.0020),
+  ('ENVD', 'Envidia',             'stocks', 'tech', 'Everyone needs their chips. Everyone. All at once.',         64.20,  64.20, 0.12, 0.70,  300000, 0.08, 0.20, 0.0040),
+  ('NTDO', 'Nintendont',          'stocks', 'tech', 'Beloved game maker; one plumber carries the company.',       28.75,  28.75, 0.07, 0.55,  250000, 0.07, 0.25, 0.0035),
+  ('AMZM', 'Amazoom',             'stocks', 'tech', 'Sells everything, delivers yesterday.',                      41.10,  41.10, 0.08, 0.50,  350000, 0.06, 0.25, 0.0030),
   -- energy
-  ('SOLR', 'Solaris Grid',        'stocks', 'energy', 'Utility-scale solar farms and storage.',                   55.40,  55.40, 0.06, 0.35,  500000, 0.05, 0.25, 0.0025),
-  ('HYDT', 'Hydrothermal Corp',   'stocks', 'energy', 'Geothermal plants on volcanic islands.',                   33.80,  33.80, 0.05, 0.40,  280000, 0.06, 0.25, 0.0030),
-  ('PETC', 'Petracore Energy',    'stocks', 'energy', 'Old-school oil major, big dividends, slow decline.',       88.90,  88.90, 0.03, 0.30,  900000, 0.04, 0.30, 0.0018),
+  ('SLCT', 'SolCity Energy',      'stocks', 'energy', 'Solar roofs and giant batteries.',                         55.40,  55.40, 0.06, 0.35,  500000, 0.05, 0.25, 0.0025),
+  ('TSLR', 'Tesler Motors',       'stocks', 'energy', 'Electric cars. The CEO tweets a lot.',                     33.80,  33.80, 0.05, 0.40,  280000, 0.06, 0.25, 0.0030),
+  ('XOFF', 'Exxoff Mobil',        'stocks', 'energy', 'Old-school oil major, big dividends, slow decline.',       88.90,  88.90, 0.03, 0.30,  900000, 0.04, 0.30, 0.0018),
   -- finance
-  ('MERB', 'Meridian Bank',       'stocks', 'finance', 'The boring, dependable megabank.',                       112.30, 112.30, 0.05, 0.25, 1200000, 0.03, 0.30, 0.0015),
-  ('VLTX', 'Voltex Payments',     'stocks', 'finance', 'Fast-growing payments network.',                          74.60,  74.60, 0.10, 0.50,  400000, 0.06, 0.22, 0.0030),
-  ('ASRA', 'Astra Insurance',     'stocks', 'finance', 'Insurance for everything, including asteroid strikes.',   47.20,  47.20, 0.04, 0.28,  600000, 0.04, 0.30, 0.0020),
+  ('GMSX', 'Goldmine Sacks',      'stocks', 'finance', 'The bank other banks call when scared.',                 112.30, 112.30, 0.05, 0.25, 1200000, 0.03, 0.30, 0.0015),
+  ('VIZA', 'Viza',                'stocks', 'finance', 'Takes a tiny cut of everything you buy.',                  74.60,  74.60, 0.10, 0.50,  400000, 0.06, 0.22, 0.0030),
+  ('GEKO', 'Geckco Insurance',    'stocks', 'finance', 'Fifteen minutes could save you fifteen dollars.',          47.20,  47.20, 0.04, 0.28,  600000, 0.04, 0.30, 0.0020),
   -- consumer
-  ('BRWZ', 'Brewzero Coffee',     'stocks', 'consumer', 'Coffee chain expanding aggressively.',                   36.50,  36.50, 0.07, 0.35,  450000, 0.05, 0.28, 0.0025),
-  ('SNKR', 'Snackrocket Foods',   'stocks', 'consumer', 'Snack conglomerate. Everyone eats snacks.',              61.80,  61.80, 0.05, 0.22, 1000000, 0.03, 0.30, 0.0015),
-  ('LUXO', 'Luxora Fashion',      'stocks', 'consumer', 'Luxury goods, boom-and-bust with sentiment.',            94.40,  94.40, 0.06, 0.45,  350000, 0.06, 0.22, 0.0035),
+  ('SBRW', 'Starbrews Coffee',    'stocks', 'consumer', 'A coffee shop inside every coffee shop.',                36.50,  36.50, 0.07, 0.35,  450000, 0.05, 0.28, 0.0025),
+  ('KOKA', 'Koka-Kola',           'stocks', 'consumer', 'Fizzy sugar water; unstoppable for a century.',          61.80,  61.80, 0.05, 0.22, 1000000, 0.03, 0.30, 0.0015),
+  ('NIKY', 'Nikey',               'stocks', 'consumer', 'Just did it. Sneaker hype cycles included.',              94.40,  94.40, 0.06, 0.45,  350000, 0.06, 0.22, 0.0035),
   -- healthcare
-  ('GENM', 'Genomica Labs',       'stocks', 'healthcare', 'Gene-therapy moonshots; binary trial outcomes.',       52.70,  52.70, 0.09, 0.65,  260000, 0.08, 0.20, 0.0040),
-  ('MEDT', 'Meditech Devices',    'stocks', 'healthcare', 'Surgical robots and hospital hardware.',               77.90,  77.90, 0.06, 0.32,  550000, 0.04, 0.28, 0.0022),
-  ('VITA', 'Vitacore Pharma',     'stocks', 'healthcare', 'Diversified pharma with steady pipeline.',            103.60, 103.60, 0.05, 0.28,  800000, 0.04, 0.30, 0.0018);
+  ('MDNA', 'Modernia Labs',       'stocks', 'healthcare', 'Biotech moonshots; binary trial outcomes.',            52.70,  52.70, 0.09, 0.65,  260000, 0.08, 0.20, 0.0040),
+  ('JNJN', 'Jonson & Jonson',     'stocks', 'healthcare', 'Band-aids to baby shampoo, and lawyers.',               77.90,  77.90, 0.06, 0.32,  550000, 0.04, 0.28, 0.0022),
+  ('PFZR', 'Pfazer',              'stocks', 'healthcare', 'Diversified pharma with a steady pipeline.',           103.60, 103.60, 0.05, 0.28,  800000, 0.04, 0.30, 0.0018);
 
 -- ----------------------------------------------------------------------------
 -- Real estate: unlockable tier — lower volatility, higher prices, thinner books.
@@ -58,9 +59,9 @@ insert into public.assets
 insert into public.assets
   (symbol, name, class_id, sector, description,
    current_price, fair_value, drift, base_volatility, liquidity, impact_coef, reversion_speed, spread, is_active) values
-  ('CO-CAFE', 'Corner Cafe Chain',   'companies', 'private', 'A 12-location cafe business.',        50000.00, 50000.00, 0.08, 0.20, 5000000, 0.02, 0.10, 0.0100, false),
-  ('CO-ROBO', 'RoboClean Services',  'companies', 'private', 'Robotic cleaning fleet operator.',    85000.00, 85000.00, 0.10, 0.30, 5000000, 0.02, 0.10, 0.0100, false),
-  ('CO-VINE', 'Vineyard Estates',    'companies', 'private', 'Boutique winery and vineyards.',     120000.00,120000.00, 0.06, 0.18, 5000000, 0.02, 0.10, 0.0100, false);
+  ('CO-CAI',  'ClosedAI Labs',       'companies', 'private', 'A secretive AI lab. Definitely nothing to worry about.', 50000.00, 50000.00, 0.08, 0.20, 5000000, 0.02, 0.10, 0.0100, false),
+  ('CO-SPCY', 'SpaceY',              'companies', 'private', 'Reusable rockets. They land, usually on purpose.',       85000.00, 85000.00, 0.10, 0.30, 5000000, 0.02, 0.10, 0.0100, false),
+  ('CO-TED',  'The Tedious Company', 'companies', 'private', 'Digs tunnels. Very slowly. Very expensively.',          120000.00,120000.00, 0.06, 0.18, 5000000, 0.02, 0.10, 0.0100, false);
 
 -- ----------------------------------------------------------------------------
 -- Event templates: the news generator. Weights skew toward mild sector/asset
@@ -129,7 +130,10 @@ insert into public.missions (code, title, description, concept, reward_cash, rew
    'news_reaction', 500, 100, '{}', 4),
   ('take_profit',   'Lock In a Win',
    'Sell an asset for more than your average buy price. A profit isn''t real until you take it.',
-   'basics', 500, 100, '{}', 5);
+   'basics', 500, 100, '{}', 5),
+  ('set_stop_loss', 'Set a Safety Net',
+   'Protect a position with a stop loss. Deciding your maximum loss before it happens is what separates traders from gamblers.',
+   'risk', 500, 100, '{}', 6);
 
 -- ----------------------------------------------------------------------------
 -- Cosmetics: strictly visual. price_premium NULL = season-reward only.

@@ -45,6 +45,33 @@ class OrderRow {
   final DateTime createdAt;
 }
 
+/// A pending take-profit ('limit') or stop-loss ('stop') order.
+class OpenOrder {
+  const OpenOrder({
+    required this.id,
+    required this.assetId,
+    required this.orderType,
+    required this.quantity,
+    required this.limitPrice,
+  });
+
+  factory OpenOrder.fromJson(Map<String, dynamic> json) => OpenOrder(
+        id: json['id'] as String,
+        assetId: json['asset_id'] as String,
+        orderType: json['order_type'] as String,
+        quantity: jsonDouble(json['quantity']),
+        limitPrice: jsonDouble(json['limit_price']),
+      );
+
+  final String id;
+  final String assetId;
+  final String orderType; // limit = take profit, stop = stop loss
+  final double quantity;
+  final double limitPrice;
+
+  bool get isTakeProfit => orderType == 'limit';
+}
+
 class PortfolioRepository {
   PortfolioRepository(this._client);
 
@@ -73,6 +100,15 @@ class PortfolioRepository {
         .order('created_at', ascending: false)
         .limit(limit);
     return rows.map(OrderRow.fromJson).toList();
+  }
+
+  Future<List<OpenOrder>> fetchOpenOrders() async {
+    final rows = await _client
+        .from('orders')
+        .select('id, asset_id, order_type, quantity, limit_price')
+        .eq('status', 'pending')
+        .order('created_at', ascending: true);
+    return rows.map(OpenOrder.fromJson).toList();
   }
 
   Future<List<NetWorthPoint>> fetchNetWorthHistory({
@@ -108,4 +144,9 @@ final recentOrdersProvider = FutureProvider<List<OrderRow>>(
 
 final netWorthHistoryProvider = FutureProvider<List<NetWorthPoint>>(
   (ref) => ref.watch(portfolioRepositoryProvider).fetchNetWorthHistory(),
+);
+
+/// Pending TP/SL orders across all positions.
+final openOrdersProvider = FutureProvider<List<OpenOrder>>(
+  (ref) => ref.watch(portfolioRepositoryProvider).fetchOpenOrders(),
 );

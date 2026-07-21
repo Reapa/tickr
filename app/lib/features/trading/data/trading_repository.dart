@@ -57,6 +57,22 @@ class TradingRepository {
     return OrderReceipt.fromJson(json);
   }
 
+  /// Set a take-profit and/or stop-loss on a held position. The server
+  /// stores them as pending sell orders the tick engine executes.
+  Future<Map<String, dynamic>> setPositionProtection({
+    required String assetId,
+    double? takeProfit,
+    double? stopLoss,
+  }) =>
+      _client.rpc<Map<String, dynamic>>('set_position_protection', params: {
+        'p_asset_id': assetId,
+        'p_take_profit': takeProfit,
+        'p_stop_loss': stopLoss,
+      });
+
+  Future<void> cancelPendingOrder(String orderId) =>
+      _client.rpc<void>('cancel_pending_order', params: {'p_order_id': orderId});
+
   Future<OrderReceipt> purchaseAssetClassUnlock(String classId) async {
     final json = await _client.rpc<Map<String, dynamic>>(
       'purchase_asset_class_unlock',

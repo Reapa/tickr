@@ -58,6 +58,11 @@ begin
              and t.created_at between e.starts_at and e.ends_at
            where t.user_id = p_user)
 
+      when 'set_stop_loss' then
+        -- protect any position with a stop loss (risk management)
+        exists (select 1 from public.orders
+                 where user_id = p_user and order_type = 'stop')
+
       when 'take_profit' then
         -- sell above your average buy price for that asset
         exists (

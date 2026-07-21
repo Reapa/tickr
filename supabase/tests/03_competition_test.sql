@@ -14,6 +14,18 @@ insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data) v
   ('00000000-0000-0000-0000-000000000000', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
    'authenticated', 'authenticated', 'bob@example.test', '{"display_name": "Bob"}'::jsonb);
 
+-- Hermetic: seasons rank EVERY profile, so remove any other players the dev
+-- database has accumulated (all rolled back with this transaction). The
+-- append-only ledger guards rightly block cascade deletes, so suspend them
+-- for the purge only.
+alter table public.transactions disable trigger transactions_append_only;
+alter table public.premium_ledger disable trigger premium_ledger_append_only;
+delete from auth.users
+ where id not in ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+alter table public.transactions enable trigger transactions_append_only;
+alter table public.premium_ledger enable trigger premium_ledger_append_only;
+
 -- Tick once so net_worth is populated (challenges snapshot it).
 select game.market_tick();
 

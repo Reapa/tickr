@@ -8,6 +8,7 @@ import '../../../core/widgets/concept_chip.dart';
 import '../../../core/widgets/price_flash.dart';
 import '../../portfolio/data/portfolio_repository.dart';
 import '../../trading/presentation/order_ticket.dart';
+import '../../trading/presentation/protection_sheet.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
 import 'price_chart.dart';
@@ -88,19 +89,37 @@ class AssetDetailScreen extends ConsumerWidget {
           ),
           if (holding != null)
             Card(
-              child: ListTile(
-                leading: const Icon(Icons.work_outline),
-                title: Text(
-                    'You hold ${Fmt.quantity(holding.quantity)} @ '
-                    '${Fmt.money(holding.avgCost)} avg'),
-                subtitle: Text(
-                  'Unrealized: ${Fmt.money(holding.quantity * (asset.currentPrice - holding.avgCost))}',
-                  style: TextStyle(
-                    color: AppTheme.changeColor(
-                        asset.currentPrice - holding.avgCost),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.work_outline),
+                    title: Text(
+                        'You hold ${Fmt.quantity(holding.quantity)} @ '
+                        '${Fmt.money(holding.avgCost)} avg'),
+                    subtitle: Text(
+                      'Unrealized: ${Fmt.money(holding.quantity * (asset.currentPrice - holding.avgCost))}',
+                      style: TextStyle(
+                        color: AppTheme.changeColor(
+                            asset.currentPrice - holding.avgCost),
+                      ),
+                    ),
+                    trailing: const ConceptChip(Concepts.avgCost),
                   ),
-                ),
-                trailing: const ConceptChip(Concepts.avgCost),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.shield_outlined, size: 16),
+                          label: const Text('Protect (TP/SL)'),
+                          onPressed: () =>
+                              showProtectionSheet(context, asset, holding),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           Padding(

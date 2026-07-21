@@ -9,10 +9,13 @@ import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
 import '../../market/data/market_repository.dart';
 import '../../market/domain/asset.dart';
+import '../../missions/data/missions_repository.dart';
+import '../../profile/data/profile_repository.dart';
+import '../../trading/data/trading_repository.dart';
+import '../../trading/presentation/protection_sheet.dart';
 import '../data/portfolio_repository.dart';
 import '../domain/holding.dart';
 import '../domain/portfolio_math.dart';
-import '../../profile/data/profile_repository.dart';
 
 class PortfolioScreen extends ConsumerWidget {
   const PortfolioScreen({super.key});
@@ -47,6 +50,7 @@ class PortfolioScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(netWorthHistoryProvider);
           ref.invalidate(recentOrdersProvider);
+          ref.invalidate(openOrdersProvider);
         },
         child: ListView(
           children: [
@@ -264,40 +268,129 @@ class _DiversificationCard extends StatelessWidget {
   }
 }
 
-class _HoldingTile extends StatelessWidget {
+class _HoldingTile extends ConsumerWidget {
   const _HoldingTile({required this.holding, required this.asset});
 
   final Holding holding;
   final Asset? asset;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final a = asset;
     if (a == null) return const SizedBox.shrink();
     final pnl = PortfolioMath.unrealizedPnl(holding, a.currentPrice);
     final ret = PortfolioMath.unrealizedReturn(holding, a.currentPrice);
+    final protection = (ref.watch(openOrdersProvider).value ?? const [])
+        .where((o) => o.assetId == a.id)
+        .toList();
     return Card(
-      child: ListTile(
-        onTap: () => context.go('/market/asset/${a.id}'),
-        title: Text('${a.symbol} · ${Fmt.quantity(holding.quantity)} units'),
-        subtitle: Text(
-            'Avg ${Fmt.money(holding.avgCost)} · now ${Fmt.money(a.currentPrice)}'),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              Fmt.money(holding.quantity * a.currentPrice),
-              style: const TextStyle(fontWeight: FontWeight.w600),
+      child: Column(
+        children: [
+          ListTile(
+            onTap: () => context.go('/market/asset/${a.id}'),
+            title: Text('${a.symbol} · ${Fmt.quantity(holding.quantity)} units'),
+            subtitle: Text(
+                'Avg ${Fmt.money(holding.avgCost)} · now ${Fmt.money(a.currentPrice)}'),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  Fmt.money(holding.quantity * a.currentPrice),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${Fmt.money(pnl)} (${Fmt.pct(ret)})',
+                  style:
+                      TextStyle(color: AppTheme.changeColor(pnl), fontSize: 12),
+                ),
+              ],
             ),
-            Text(
-              '${Fmt.money(pnl)} (${Fmt.pct(ret)})',
-              style: TextStyle(color: AppTheme.changeColor(pnl), fontSize: 12),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+            child: Row(
+              children: [
+                if (protection.isNotEmpty)
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final order in protection)
+                          Text(
+                            '${order.isTakeProfit ? '🎯 TP' : '🛡 SL'} '
+                            '${Fmt.money(order.limitPrice)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: order.isTakeProfit
+                                  ? AppTheme.up
+                                  : AppTheme.down,
+                            ),
+                          ),
+                      ],
+                    ),
+                  )
+                else
+                  const Spacer(),
+                TextButton.icon(
+                  icon: const Icon(Icons.shield_outlined, size: 16),
+                  label: Text(protection.isEmpty ? 'Protect' : 'Edit'),
+                  onPressed: () => showProtectionSheet(context, a, holding),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.logout, size: 16),
+                  style: TextButton.styleFrom(foregroundColor: AppTheme.down),
+                  label: const Text('Close'),
+                  onPressed: () => _closePosition(context, ref, a),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _closePosition(
+      BuildContext context, WidgetRef ref, Asset a) async {
+    final estProceeds = holding.quantity * a.bidPrice;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Close ${a.symbol} position?'),
+        content: Text(
+            'Sell all ${Fmt.quantity(holding.quantity)} units at market '
+            '(~${Fmt.money(estProceeds)}).'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.down),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Close position'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final receipt = await ref.read(tradingRepositoryProvider).placeMarketOrder(
+          assetId: a.id, side: 'sell', quantity: holding.quantity);
+      ref.invalidate(holdingsProvider);
+      ref.invalidate(openOrdersProvider);
+      ref.invalidate(recentOrdersProvider);
+      ref.invalidate(ledgerProvider);
+      ref.invalidate(missionsProvider);
+      messenger.showSnackBar(SnackBar(
+        content: Text(receipt.isFilled
+            ? 'Closed ${a.symbol}: +${Fmt.money(receipt.notional ?? 0)}'
+            : 'Close failed: ${receipt.reason}'),
+      ));
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('$error')));
+    }
   }
 }
 

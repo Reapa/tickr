@@ -16,7 +16,7 @@ select plan(37);
 -- every fill below deterministic.
 -- ---------------------------------------------------------------------------
 update public.assets set current_price = 182.50, fair_value = 182.50, flow = 0
- where symbol = 'NBLA';
+ where symbol = 'GOGL';
 update public.assets set current_price = 1250.00, fair_value = 1250.00, flow = 0
  where symbol = 'DWTN';
 
@@ -41,19 +41,19 @@ select ok(game.has_class_unlock('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stocks'
   'stocks unlocked at signup');
 select ok(not game.has_class_unlock('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'real_estate'),
   'real estate locked at signup');
-select is(count(*)::int, 5, 'all seed missions enrolled')
+select is(count(*)::int, 6, 'all seed missions enrolled')
   from user_missions where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 select is(starting_net_worth, 10000.00::numeric(18,2), 'joined active season at starting cash')
   from season_scores where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 -- ---------------------------------------------------------------------------
--- Market buy: NBLA @ 182.50, spread 0.002 -> ask 182.6825, 10 shares.
+-- Market buy: GOGL @ 182.50, spread 0.002 -> ask 182.6825, 10 shares.
 -- notional 1826.83; first_trade mission pays 250 => cash 8423.17.
 -- ---------------------------------------------------------------------------
 create temp table r (label text primary key, receipt jsonb);
 
 insert into r values ('buy1', place_market_order(
-  (select id from assets where symbol = 'NBLA'), 'buy', 10));
+  (select id from assets where symbol = 'GOGL'), 'buy', 10));
 
 select is(receipt ->> 'status', 'filled', 'buy order fills') from r where label = 'buy1';
 select is((receipt ->> 'price')::numeric, 182.6825,
@@ -63,12 +63,12 @@ select is(cash_balance, 8423.17::numeric(18,2),
   from profiles where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 select is(quantity, 10.0000::numeric(18,4), 'holding created with bought quantity')
   from holdings where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-   and asset_id = (select id from assets where symbol = 'NBLA');
+   and asset_id = (select id from assets where symbol = 'GOGL');
 -- Cost basis derives from actual cash moved (notional rounded to cents:
 -- 1826.83 / 10), not the quoted price — so it always reconciles to the ledger.
 select is(avg_cost, 182.6830::numeric(18,4), 'avg cost = cash spent / units bought')
   from holdings where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-   and asset_id = (select id from assets where symbol = 'NBLA');
+   and asset_id = (select id from assets where symbol = 'GOGL');
 select is(xp, 60, 'xp = 10 per trade + 50 mission reward')
   from profiles where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 select is(status, 'completed', 'first_trade mission completed')
@@ -81,7 +81,7 @@ select is((select count(*)::int from game.reconcile_ledger()), 0,
 -- Market sell: 4 shares at bid 182.3175 -> +729.27 => cash 9152.44.
 -- ---------------------------------------------------------------------------
 insert into r values ('sell1', place_market_order(
-  (select id from assets where symbol = 'NBLA'), 'sell', 4));
+  (select id from assets where symbol = 'GOGL'), 'sell', 4));
 
 select is((receipt ->> 'price')::numeric, 182.3175,
   'seller receives current price minus half spread') from r where label = 'sell1';
@@ -89,23 +89,23 @@ select is(cash_balance, 9152.44::numeric(18,2), 'sell proceeds credited')
   from profiles where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 select is(quantity, 6.0000::numeric(18,4), 'holding reduced')
   from holdings where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-   and asset_id = (select id from assets where symbol = 'NBLA');
+   and asset_id = (select id from assets where symbol = 'GOGL');
 select is(avg_cost, 182.6830::numeric(18,4), 'avg cost unchanged by sells')
   from holdings where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-   and asset_id = (select id from assets where symbol = 'NBLA');
+   and asset_id = (select id from assets where symbol = 'GOGL');
 
 -- ---------------------------------------------------------------------------
 -- Rejections are persisted, never destructive.
 -- ---------------------------------------------------------------------------
 insert into r values ('oversell', place_market_order(
-  (select id from assets where symbol = 'NBLA'), 'sell', 10));
+  (select id from assets where symbol = 'GOGL'), 'sell', 10));
 select is(receipt ->> 'reason', 'insufficient holdings', 'cannot sell more than held')
   from r where label = 'oversell';
 select is(count(*)::int, 1, 'rejected order persisted for audit')
   from orders where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and status = 'rejected';
 
 insert into r values ('bigbuy', place_market_order(
-  (select id from assets where symbol = 'NBLA'), 'buy', 1000));
+  (select id from assets where symbol = 'GOGL'), 'buy', 1000));
 select is(receipt ->> 'reason', 'insufficient cash', 'cannot buy beyond cash')
   from r where label = 'bigbuy';
 

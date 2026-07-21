@@ -164,6 +164,10 @@ begin
     left join vol v on v.asset_id = d.asset_id
    where a.id = d.asset_id;
 
+  -- 3b. Execute take-profit / stop-loss orders at the new prices
+  --     (defined in migration 14; plpgsql binds at runtime).
+  perform game.execute_triggered_orders();
+
   -- 4. Record public ticks; prune history beyond retention.
   insert into public.price_ticks (asset_id, price)
   select id, current_price from public.assets where is_active;
