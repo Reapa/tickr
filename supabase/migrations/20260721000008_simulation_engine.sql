@@ -164,9 +164,11 @@ begin
     left join vol v on v.asset_id = d.asset_id
    where a.id = d.asset_id;
 
-  -- 3b. Execute take-profit / stop-loss orders at the new prices
-  --     (defined in migration 14; plpgsql binds at runtime).
+  -- 3b. Execute take-profit / stop-loss orders and enforce leveraged
+  --     liquidations/TP/SL at the new prices (migrations 14/15; plpgsql
+  --     binds at runtime).
   perform game.execute_triggered_orders();
+  perform game.process_leveraged_positions();
 
   -- 4. Record public ticks; prune history beyond retention.
   insert into public.price_ticks (asset_id, price)
@@ -175,19 +177,25 @@ begin
   delete from public.price_ticks
    where tick_at < now() - make_interval(days => v_retention::int);
 
-  -- 5. Refresh net worth (cash + marked-to-market holdings).
-  update public.profiles p
-     set net_worth = p.cash_balance + coalesce(hv.value, 0)
-    from (select h.user_id, sum(h.quantity * a.current_price) as value
-            from public.holdings h
-            join public.assets a on a.id = h.asset_id
-           group by h.user_id) hv
-   where hv.user_id = p.id;
-
+  -- 5. Refresh net worth: cash + marked holdings + leveraged equity
+  --    (margin + capped P&L per open position; a position is never worth
+  --    less than zero to its owner).
   update public.profiles p
      set net_worth = p.cash_balance
-   where not exists (select 1 from public.holdings h where h.user_id = p.id)
-     and p.net_worth <> p.cash_balance;
+       + coalesce((select sum(h.quantity * a.current_price)
+                     from public.holdings h
+                     join public.assets a on a.id = h.asset_id
+                    where h.user_id = p.id), 0)
+       + coalesce((select sum(greatest(0, lp.margin +
+                     case when lp.side = 'long'
+                          then lp.quantity * (a.current_price * (1 - a.spread / 2)
+                                              - lp.entry_price)
+                          else lp.quantity * (lp.entry_price
+                                              - a.current_price * (1 + a.spread / 2))
+                     end))
+                     from public.leveraged_positions lp
+                     join public.assets a on a.id = lp.asset_id
+                    where lp.user_id = p.id and lp.status = 'open'), 0);
 
   -- Portfolio-value-over-time history (table in migration 12; plpgsql binds
   -- at runtime, after all migrations are applied).

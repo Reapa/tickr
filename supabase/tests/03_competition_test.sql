@@ -6,6 +6,11 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, game;
 
+-- Serialize against the live pg_cron tick: hold the tick's advisory lock
+-- for this whole transaction so in-test ticks always run and background
+-- ticks no-op instead of blocking on our pinned rows.
+select pg_advisory_xact_lock(hashtext('game.market_tick'));
+
 select plan(22);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data) values

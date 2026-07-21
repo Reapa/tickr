@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/education.dart';
 import '../../../core/format.dart';
+import '../../../core/sector_colors.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
+import '../../leverage/data/leverage_repository.dart';
+import '../../leverage/presentation/leverage_position_card.dart';
 import '../../market/data/market_repository.dart';
 import '../../market/domain/asset.dart';
 import '../../missions/data/missions_repository.dart';
@@ -55,7 +58,19 @@ class PortfolioScreen extends ConsumerWidget {
         child: ListView(
           children: [
             Card(
-              child: Padding(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppTheme.accent.withValues(alpha: 0.16),
+                      AppTheme.surface,
+                      AppTheme.up.withValues(alpha: 0.10),
+                    ],
+                  ),
+                ),
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,6 +119,7 @@ class PortfolioScreen extends ConsumerWidget {
                   holding: holding,
                   asset: assetById[holding.assetId],
                 ),
+            const _LeveragedSection(),
             const _RecentOrders(),
             const SizedBox(height: 24),
           ],
@@ -229,13 +245,12 @@ class _DiversificationCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               child: Row(
                 children: [
-                  for (final (index, entry) in entries.indexed)
+                  for (final entry in entries)
                     Expanded(
                       flex: (entry.value * 1000).round().clamp(1, 1000),
                       child: Container(
                         height: 8,
-                        color: Colors.primaries[
-                            (index * 4) % Colors.primaries.length],
+                        color: SectorColors.of(entry.key),
                       ),
                     ),
                 ],
@@ -248,7 +263,8 @@ class _DiversificationCard extends StatelessWidget {
                 for (final entry in entries)
                   Text(
                     '${entry.key.toUpperCase()} ${(entry.value * 100).toStringAsFixed(0)}%',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: SectorColors.of(entry.key)),
                   ),
               ],
             ),
@@ -391,6 +407,34 @@ class _HoldingTile extends ConsumerWidget {
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('$error')));
     }
+  }
+}
+
+class _LeveragedSection extends ConsumerWidget {
+  const _LeveragedSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final positions =
+        ref.watch(leveragedPositionsProvider).value ?? const [];
+    if (positions.isEmpty) return const SizedBox.shrink();
+    final assets = ref.watch(assetsProvider).value ?? const <Asset>[];
+    final assetById = {for (final a in assets) a.id: a};
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text('⚡ Leveraged positions',
+              style: Theme.of(context).textTheme.titleMedium),
+        ),
+        for (final position in positions)
+          LeveragePositionCard(
+            position: position,
+            asset: assetById[position.assetId],
+          ),
+      ],
+    );
   }
 }
 

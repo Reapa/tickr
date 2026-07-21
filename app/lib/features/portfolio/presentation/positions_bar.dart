@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
+import '../../leverage/data/leverage_repository.dart';
+import '../../leverage/domain/leveraged_position.dart';
 import '../../market/data/market_repository.dart';
 import '../../market/domain/asset.dart';
 import '../data/portfolio_repository.dart';
@@ -19,14 +21,23 @@ class PositionsBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final holdings = ref.watch(holdingsProvider).value ?? const <Holding>[];
+    final leveraged = (ref.watch(leveragedPositionsProvider).value ?? const [])
+        .where((p) => p.isOpen)
+        .toList();
     final assets = ref.watch(assetsProvider).value ?? const <Asset>[];
-    if (holdings.isEmpty || assets.isEmpty) return const SizedBox.shrink();
+    if ((holdings.isEmpty && leveraged.isEmpty) || assets.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     final assetById = {for (final a in assets) a.id: a};
     var totalPnl = 0.0;
     for (final h in holdings) {
       final a = assetById[h.assetId];
       if (a != null) totalPnl += PortfolioMath.unrealizedPnl(h, a.currentPrice);
+    }
+    for (final p in leveraged) {
+      final a = assetById[p.assetId];
+      if (a != null) totalPnl += p.pnlAt(p.isLong ? a.bidPrice : a.askPrice);
     }
 
     return Container(
@@ -72,10 +83,52 @@ class PositionsBar extends ConsumerWidget {
                       holding: holding,
                       asset: assetById[holding.assetId]!,
                     ),
+                for (final position in leveraged)
+                  if (assetById[position.assetId] != null)
+                    _LeverageChip(
+                      position: position,
+                      asset: assetById[position.assetId]!,
+                    ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LeverageChip extends StatelessWidget {
+  const _LeverageChip({required this.position, required this.asset});
+
+  final LeveragedPosition position;
+  final Asset asset;
+
+  @override
+  Widget build(BuildContext context) {
+    final mark = position.isLong ? asset.bidPrice : asset.askPrice;
+    final rom = position.returnOnMarginAt(mark);
+    return InkWell(
+      onTap: () => context.go('/market/asset/${asset.id}'),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          children: [
+            Text('⚡${asset.symbol} ${position.leverage}x',
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 4),
+            Text(
+              Fmt.pct(rom),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.changeColor(rom),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

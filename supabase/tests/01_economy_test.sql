@@ -7,6 +7,11 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, game;
 
+-- Serialize against the live pg_cron tick: hold the tick's advisory lock
+-- for this whole transaction so in-test ticks always run and background
+-- ticks no-op instead of blocking on our pinned rows.
+select pg_advisory_xact_lock(hashtext('game.market_tick'));
+
 select plan(37);
 
 -- ---------------------------------------------------------------------------
@@ -41,8 +46,11 @@ select ok(game.has_class_unlock('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stocks'
   'stocks unlocked at signup');
 select ok(not game.has_class_unlock('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'real_estate'),
   'real estate locked at signup');
-select is(count(*)::int, 6, 'all seed missions enrolled')
-  from user_missions where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+select is(
+  (select count(*) from user_missions
+    where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+  (select count(*) from missions where is_active),
+  'all active missions enrolled at signup');
 select is(starting_net_worth, 10000.00::numeric(18,2), 'joined active season at starting cash')
   from season_scores where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 

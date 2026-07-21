@@ -58,6 +58,10 @@ begin
              and t.created_at between e.starts_at and e.ends_at
            where t.user_id = p_user)
 
+      when 'use_leverage' then
+        -- opened any leveraged position (risk management by experience)
+        exists (select 1 from public.leveraged_positions where user_id = p_user)
+
       when 'set_stop_loss' then
         -- protect any position with a stop loss (risk management)
         exists (select 1 from public.orders

@@ -9,7 +9,8 @@
 insert into public.asset_classes (id, name, description, unlock_cost, is_enabled, sort_order) values
   ('stocks',      'Stocks',      'Shares in fictional companies across five sectors. Free to trade from day one.', 0, true, 1),
   ('real_estate', 'Real Estate', 'Property funds: slower-moving, steadier income-style assets. Buy your way in.', 50000, true, 2),
-  ('companies',   'Companies',   'Own entire private companies. Coming soon.', 250000, false, 3);
+  ('companies',   'Companies',   'Own entire private companies. Coming soon.', 250000, false, 3),
+  ('margin',      'Broker License', 'Trade with leverage: control 5-100x your stake, long or short. High risk, high reward — you can lose your whole margin.', 25000, true, 4);
 
 -- ----------------------------------------------------------------------------
 -- Stocks: 16 across 5 sectors. Volatility/liquidity tuned per personality:
@@ -20,26 +21,26 @@ insert into public.assets
   (symbol, name, class_id, sector, description,
    current_price, fair_value, drift, base_volatility, liquidity, impact_coef, reversion_speed, spread) values
   -- tech
-  ('GOGL', 'Googol',              'stocks', 'tech', 'Search, ads, and a graveyard of side projects.',            182.50, 182.50, 0.09, 0.45,  800000, 0.05, 0.25, 0.0020),
-  ('ENVD', 'Envidia',             'stocks', 'tech', 'Everyone needs their chips. Everyone. All at once.',         64.20,  64.20, 0.12, 0.70,  300000, 0.08, 0.20, 0.0040),
-  ('NTDO', 'Nintendont',          'stocks', 'tech', 'Beloved game maker; one plumber carries the company.',       28.75,  28.75, 0.07, 0.55,  250000, 0.07, 0.25, 0.0035),
-  ('AMZM', 'Amazoom',             'stocks', 'tech', 'Sells everything, delivers yesterday.',                      41.10,  41.10, 0.08, 0.50,  350000, 0.06, 0.25, 0.0030),
+  ('GOGL', 'Googol',              'stocks', 'tech', 'Search, ads, and a graveyard of side projects.',            182.50, 182.50, 0.09, 0.45, 160000, 0.05, 0.25, 0.0020),
+  ('ENVD', 'Envidia',             'stocks', 'tech', 'Everyone needs their chips. Everyone. All at once.',         64.20,  64.20, 0.12, 0.70,  60000, 0.08, 0.20, 0.0040),
+  ('NTDO', 'Nintendont',          'stocks', 'tech', 'Beloved game maker; one plumber carries the company.',       28.75,  28.75, 0.07, 0.55,  50000, 0.07, 0.25, 0.0035),
+  ('AMZM', 'Amazoom',             'stocks', 'tech', 'Sells everything, delivers yesterday.',                      41.10,  41.10, 0.08, 0.50,  70000, 0.06, 0.25, 0.0030),
   -- energy
-  ('SLCT', 'SolCity Energy',      'stocks', 'energy', 'Solar roofs and giant batteries.',                         55.40,  55.40, 0.06, 0.35,  500000, 0.05, 0.25, 0.0025),
-  ('TSLR', 'Tesler Motors',       'stocks', 'energy', 'Electric cars. The CEO tweets a lot.',                     33.80,  33.80, 0.05, 0.40,  280000, 0.06, 0.25, 0.0030),
-  ('XOFF', 'Exxoff Mobil',        'stocks', 'energy', 'Old-school oil major, big dividends, slow decline.',       88.90,  88.90, 0.03, 0.30,  900000, 0.04, 0.30, 0.0018),
+  ('SLCT', 'SolCity Energy',      'stocks', 'energy', 'Solar roofs and giant batteries.',                         55.40,  55.40, 0.06, 0.35, 100000, 0.05, 0.25, 0.0025),
+  ('TSLR', 'Tesler Motors',       'stocks', 'energy', 'Electric cars. The CEO tweets a lot.',                     33.80,  33.80, 0.05, 0.40,  56000, 0.06, 0.25, 0.0030),
+  ('XOFF', 'Exxoff Mobil',        'stocks', 'energy', 'Old-school oil major, big dividends, slow decline.',       88.90,  88.90, 0.03, 0.30, 180000, 0.04, 0.30, 0.0018),
   -- finance
-  ('GMSX', 'Goldmine Sacks',      'stocks', 'finance', 'The bank other banks call when scared.',                 112.30, 112.30, 0.05, 0.25, 1200000, 0.03, 0.30, 0.0015),
-  ('VIZA', 'Viza',                'stocks', 'finance', 'Takes a tiny cut of everything you buy.',                  74.60,  74.60, 0.10, 0.50,  400000, 0.06, 0.22, 0.0030),
-  ('GEKO', 'Geckco Insurance',    'stocks', 'finance', 'Fifteen minutes could save you fifteen dollars.',          47.20,  47.20, 0.04, 0.28,  600000, 0.04, 0.30, 0.0020),
+  ('GMSX', 'Goldmine Sacks',      'stocks', 'finance', 'The bank other banks call when scared.',                 112.30, 112.30, 0.05, 0.25, 240000, 0.03, 0.30, 0.0015),
+  ('VIZA', 'Viza',                'stocks', 'finance', 'Takes a tiny cut of everything you buy.',                  74.60,  74.60, 0.10, 0.50,  80000, 0.06, 0.22, 0.0030),
+  ('GEKO', 'Geckco Insurance',    'stocks', 'finance', 'Fifteen minutes could save you fifteen dollars.',          47.20,  47.20, 0.04, 0.28, 120000, 0.04, 0.30, 0.0020),
   -- consumer
-  ('SBRW', 'Starbrews Coffee',    'stocks', 'consumer', 'A coffee shop inside every coffee shop.',                36.50,  36.50, 0.07, 0.35,  450000, 0.05, 0.28, 0.0025),
-  ('KOKA', 'Koka-Kola',           'stocks', 'consumer', 'Fizzy sugar water; unstoppable for a century.',          61.80,  61.80, 0.05, 0.22, 1000000, 0.03, 0.30, 0.0015),
-  ('NIKY', 'Nikey',               'stocks', 'consumer', 'Just did it. Sneaker hype cycles included.',              94.40,  94.40, 0.06, 0.45,  350000, 0.06, 0.22, 0.0035),
+  ('SBRW', 'Starbrews Coffee',    'stocks', 'consumer', 'A coffee shop inside every coffee shop.',                36.50,  36.50, 0.07, 0.35,  90000, 0.05, 0.28, 0.0025),
+  ('KOKA', 'Koka-Kola',           'stocks', 'consumer', 'Fizzy sugar water; unstoppable for a century.',          61.80,  61.80, 0.05, 0.22, 200000, 0.03, 0.30, 0.0015),
+  ('NIKY', 'Nikey',               'stocks', 'consumer', 'Just did it. Sneaker hype cycles included.',              94.40,  94.40, 0.06, 0.45,  70000, 0.06, 0.22, 0.0035),
   -- healthcare
-  ('MDNA', 'Modernia Labs',       'stocks', 'healthcare', 'Biotech moonshots; binary trial outcomes.',            52.70,  52.70, 0.09, 0.65,  260000, 0.08, 0.20, 0.0040),
-  ('JNJN', 'Jonson & Jonson',     'stocks', 'healthcare', 'Band-aids to baby shampoo, and lawyers.',               77.90,  77.90, 0.06, 0.32,  550000, 0.04, 0.28, 0.0022),
-  ('PFZR', 'Pfazer',              'stocks', 'healthcare', 'Diversified pharma with a steady pipeline.',           103.60, 103.60, 0.05, 0.28,  800000, 0.04, 0.30, 0.0018);
+  ('MDNA', 'Modernia Labs',       'stocks', 'healthcare', 'Biotech moonshots; binary trial outcomes.',            52.70,  52.70, 0.09, 0.65,  52000, 0.08, 0.20, 0.0040),
+  ('JNJN', 'Jonson & Jonson',     'stocks', 'healthcare', 'Band-aids to baby shampoo, and lawyers.',               77.90,  77.90, 0.06, 0.32, 110000, 0.04, 0.28, 0.0022),
+  ('PFZR', 'Pfazer',              'stocks', 'healthcare', 'Diversified pharma with a steady pipeline.',           103.60, 103.60, 0.05, 0.28, 160000, 0.04, 0.30, 0.0018);
 
 -- ----------------------------------------------------------------------------
 -- Real estate: unlockable tier — lower volatility, higher prices, thinner books.
@@ -47,11 +48,11 @@ insert into public.assets
 insert into public.assets
   (symbol, name, class_id, sector, description,
    current_price, fair_value, drift, base_volatility, liquidity, impact_coef, reversion_speed, spread) values
-  ('DWTN', 'Downtown Towers REIT',  'real_estate', 'commercial',  'Prime office towers in the capital.',      1250.00, 1250.00, 0.05, 0.15, 2000000, 0.03, 0.15, 0.0050),
-  ('SUBH', 'Suburbia Homes Fund',   'real_estate', 'residential', 'Single-family rental portfolio.',           640.00,  640.00, 0.06, 0.12, 1500000, 0.03, 0.15, 0.0045),
-  ('MALL', 'Grand Mall Holdings',   'real_estate', 'commercial',  'Shopping malls betting on a comeback.',     310.00,  310.00, 0.03, 0.25,  800000, 0.05, 0.18, 0.0060),
-  ('WRHS', 'Warehouse Logistics Trust', 'real_estate', 'industrial', 'Fulfillment centers on every highway.',  920.00,  920.00, 0.07, 0.18, 1800000, 0.03, 0.15, 0.0045),
-  ('ISLE', 'Island Resorts Group',  'real_estate', 'hospitality', 'Beach resorts; sunny until a storm hits.',  480.00,  480.00, 0.06, 0.30,  600000, 0.06, 0.18, 0.0070);
+  ('DWTN', 'Downtown Towers REIT',  'real_estate', 'commercial',  'Prime office towers in the capital.',      1250.00, 1250.00, 0.05, 0.15, 400000, 0.03, 0.15, 0.0050),
+  ('SUBH', 'Suburbia Homes Fund',   'real_estate', 'residential', 'Single-family rental portfolio.',           640.00,  640.00, 0.06, 0.12, 300000, 0.03, 0.15, 0.0045),
+  ('MALL', 'Grand Mall Holdings',   'real_estate', 'commercial',  'Shopping malls betting on a comeback.',     310.00,  310.00, 0.03, 0.25, 160000, 0.05, 0.18, 0.0060),
+  ('WRHS', 'Warehouse Logistics Trust', 'real_estate', 'industrial', 'Fulfillment centers on every highway.',  920.00,  920.00, 0.07, 0.18, 360000, 0.03, 0.15, 0.0045),
+  ('ISLE', 'Island Resorts Group',  'real_estate', 'hospitality', 'Beach resorts; sunny until a storm hits.',  480.00,  480.00, 0.06, 0.30, 120000, 0.06, 0.18, 0.0070);
 
 -- ----------------------------------------------------------------------------
 -- Companies: scaffolded third tier (class disabled; assets inactive).
@@ -59,9 +60,9 @@ insert into public.assets
 insert into public.assets
   (symbol, name, class_id, sector, description,
    current_price, fair_value, drift, base_volatility, liquidity, impact_coef, reversion_speed, spread, is_active) values
-  ('CO-CAI',  'ClosedAI Labs',       'companies', 'private', 'A secretive AI lab. Definitely nothing to worry about.', 50000.00, 50000.00, 0.08, 0.20, 5000000, 0.02, 0.10, 0.0100, false),
-  ('CO-SPCY', 'SpaceY',              'companies', 'private', 'Reusable rockets. They land, usually on purpose.',       85000.00, 85000.00, 0.10, 0.30, 5000000, 0.02, 0.10, 0.0100, false),
-  ('CO-TED',  'The Tedious Company', 'companies', 'private', 'Digs tunnels. Very slowly. Very expensively.',          120000.00,120000.00, 0.06, 0.18, 5000000, 0.02, 0.10, 0.0100, false);
+  ('CO-CAI',  'ClosedAI Labs',       'companies', 'private', 'A secretive AI lab. Definitely nothing to worry about.', 50000.00, 50000.00, 0.08, 0.20, 1000000, 0.02, 0.10, 0.0100, false),
+  ('CO-SPCY', 'SpaceY',              'companies', 'private', 'Reusable rockets. They land, usually on purpose.',       85000.00, 85000.00, 0.10, 0.30, 1000000, 0.02, 0.10, 0.0100, false),
+  ('CO-TED',  'The Tedious Company', 'companies', 'private', 'Digs tunnels. Very slowly. Very expensively.',          120000.00,120000.00, 0.06, 0.18, 1000000, 0.02, 0.10, 0.0100, false);
 
 -- ----------------------------------------------------------------------------
 -- Event templates: the news generator. Weights skew toward mild sector/asset
@@ -133,7 +134,10 @@ insert into public.missions (code, title, description, concept, reward_cash, rew
    'basics', 500, 100, '{}', 5),
   ('set_stop_loss', 'Set a Safety Net',
    'Protect a position with a stop loss. Deciding your maximum loss before it happens is what separates traders from gamblers.',
-   'risk', 500, 100, '{}', 6);
+   'risk', 500, 100, '{}', 6),
+  ('use_leverage',  'Play With Fire',
+   'Open a leveraged position. Leverage multiplies gains AND losses — respect the liquidation price.',
+   'risk', 500, 100, '{}', 7);
 
 -- ----------------------------------------------------------------------------
 -- Cosmetics: strictly visual. price_premium NULL = season-reward only.

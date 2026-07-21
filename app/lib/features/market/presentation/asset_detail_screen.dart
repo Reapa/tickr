@@ -6,7 +6,10 @@ import '../../../core/format.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
 import '../../../core/widgets/price_flash.dart';
+import '../../leverage/presentation/leverage_sheet.dart';
 import '../../portfolio/data/portfolio_repository.dart';
+import '../../profile/data/profile_repository.dart';
+import '../../trading/data/trading_repository.dart';
 import '../../trading/presentation/order_ticket.dart';
 import '../../trading/presentation/protection_sheet.dart';
 import '../data/market_repository.dart';
@@ -161,11 +164,73 @@ class AssetDetailScreen extends ConsumerWidget {
                   child: const Text('Sell'),
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _LeverageButton(asset: asset),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+/// Opens the leverage ticket, or offers the broker-license unlock.
+class _LeverageButton extends ConsumerWidget {
+  const _LeverageButton({required this.asset});
+
+  final Asset asset;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unlocked =
+        ref.watch(unlockedClassesProvider).value?.contains('margin') ?? false;
+    return FilledButton(
+      style: FilledButton.styleFrom(backgroundColor: Colors.amber.shade700),
+      onPressed: () => unlocked
+          ? showLeverageSheet(context, asset)
+          : _offerUnlock(context, ref),
+      child: Text(unlocked ? '⚡ Leverage' : '⚡ 🔒'),
+    );
+  }
+
+  Future<void> _offerUnlock(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Broker license'),
+        content: const Text(
+            'Unlock leveraged trading for \$25,000: go long or short with '
+            '5-100x your stake. High risk — a position can lose its entire '
+            'margin. Ready?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Not yet')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(r'Unlock for $25,000')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final receipt = await ref
+          .read(tradingRepositoryProvider)
+          .purchaseAssetClassUnlock('margin');
+      if (receipt.status == 'unlocked') {
+        ref.invalidate(unlockedClassesProvider);
+        messenger.showSnackBar(const SnackBar(
+            content: Text('⚡ Broker license active — trade carefully.')));
+      } else {
+        messenger.showSnackBar(
+            SnackBar(content: Text(receipt.reason ?? 'Unlock failed')));
+      }
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('$error')));
+    }
   }
 }
 

@@ -41,7 +41,7 @@ insert into public.game_config (key, value, description) values
   ('starting_cash',        '10000',  'Cash granted to every new player.'),
   ('starting_premium',     '200',    'Premium (cosmetic-only) currency granted to every new player.'),
   ('flow_halflife_seconds','60',     'Half-life of the net order-flow accumulator that drives price impact.'),
-  ('event_spawn_probability','0.02', 'Per-tick probability that a news event spawns.'),
+  ('event_spawn_probability','0.03', 'Per-tick probability that a news event spawns.'),
   ('max_order_notional',   '10000000', 'Hard cap on a single order''s notional value.'),
   ('price_tick_retention_days','7',  'Raw price ticks older than this are pruned each tick.'),
   ('season_length_days',   '14',     'Length of a competitive season.'),

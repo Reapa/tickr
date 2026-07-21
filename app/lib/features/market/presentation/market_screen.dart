@@ -6,11 +6,13 @@ import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/widgets/async_view.dart';
 import '../../../core/widgets/concept_chip.dart';
+import '../../../core/sector_colors.dart';
 import '../../../core/widgets/price_flash.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
+import 'sparkline.dart';
 import 'ticker_tape.dart';
 import 'widgets.dart';
 
@@ -77,7 +79,17 @@ class _AssetsTab extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-                if (unlockedIds.contains(cls.id))
+                if (cls.id == 'margin' && unlockedIds.contains(cls.id))
+                  const Card(
+                    child: ListTile(
+                      leading: Text('⚡', style: TextStyle(fontSize: 22)),
+                      title: Text('Broker active'),
+                      subtitle: Text(
+                          'Long or short any asset with the Leverage button '
+                          'on its page. Respect the liquidation price.'),
+                    ),
+                  )
+                else if (unlockedIds.contains(cls.id))
                   ...assetList
                       .where((a) => a.classId == cls.id)
                       .map((a) => _AssetTile(asset: a))
@@ -100,28 +112,47 @@ class _AssetTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sectorColor = SectorColors.of(asset.sector);
     return Card(
       child: ListTile(
         onTap: () => context.go('/market/asset/${asset.id}'),
         leading: CircleAvatar(
+          backgroundColor: sectorColor.withValues(alpha: 0.22),
           child: Text(
             asset.symbol.substring(0, asset.symbol.length.clamp(0, 2)),
-            style: const TextStyle(fontSize: 13),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: sectorColor,
+            ),
           ),
         ),
         title: Text('${asset.symbol} · ${asset.name}'),
-        subtitle: Text(asset.sector.toUpperCase(),
-            style: Theme.of(context).textTheme.bodySmall),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        subtitle: Text(
+          asset.sector.toUpperCase(),
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: sectorColor.withValues(alpha: 0.9)),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            PriceFlash(
-              price: asset.currentPrice,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+            Sparkline(assetId: asset.id),
+            const SizedBox(width: 12),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                PriceFlash(
+                  price: asset.currentPrice,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                ChangeBadge(
+                    assetId: asset.id, currentPrice: asset.currentPrice),
+              ],
             ),
-            const SizedBox(height: 2),
-            ChangeBadge(assetId: asset.id, currentPrice: asset.currentPrice),
           ],
         ),
       ),
