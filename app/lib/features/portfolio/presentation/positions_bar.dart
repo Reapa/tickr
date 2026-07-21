@@ -9,6 +9,8 @@ import '../../leverage/domain/leveraged_position.dart';
 import '../../market/data/market_repository.dart';
 import '../../market/domain/asset.dart';
 import '../../profile/data/profile_repository.dart';
+import '../../profile/domain/profile.dart';
+import '../../profile/presentation/daily_reward_dialog.dart';
 import '../data/portfolio_repository.dart';
 import '../domain/holding.dart';
 import '../domain/portfolio_math.dart';
@@ -31,11 +33,16 @@ class PositionsBar extends ConsumerWidget {
     final assets = ref.watch(assetsProvider).value ?? const <Asset>[];
     final assetById = {for (final a in assets) a.id: a};
 
-    // Today's change = net worth now vs the oldest point in the loaded history.
+    // Today's change = net worth now vs the earliest point in the last 24h
+    // (history now spans a week, so filter to the day).
     final history = ref.watch(netWorthHistoryProvider).value;
-    final double? todayChange = (history != null && history.isNotEmpty)
-        ? profile.netWorth - history.first.netWorth
-        : null;
+    final dayCutoff = DateTime.now().subtract(const Duration(hours: 24));
+    final dayBase = history
+        ?.where((p) => p.time.isAfter(dayCutoff))
+        .firstOrNull ??
+        history?.firstOrNull;
+    final double? todayChange =
+        dayBase == null ? null : profile.netWorth - dayBase.netWorth;
 
     return Container(
       height: 46,
@@ -96,7 +103,49 @@ class PositionsBar extends ConsumerWidget {
                     ],
                   ),
           ),
+          _StreakChip(profile: profile),
         ],
+      ),
+    );
+  }
+}
+
+/// The always-visible streak flame; glows gold when today's reward is
+/// unclaimed. Tap to open the daily-reward dialog.
+class _StreakChip extends ConsumerWidget {
+  const _StreakChip({required this.profile});
+
+  final Profile profile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final claimable = profile.canClaimDaily;
+    final color = claimable ? AppTheme.gold : Colors.grey.shade500;
+    return InkWell(
+      onTap: () => showDailyRewardDialog(context, ref),
+      child: Container(
+        margin: const EdgeInsets.only(right: 8, left: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(9),
+          color: claimable
+              ? AppTheme.gold.withValues(alpha: 0.16)
+              : Colors.transparent,
+          border: Border.all(
+              color: claimable ? AppTheme.gold.withValues(alpha: 0.5) : AppTheme.hairline),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🔥', style: TextStyle(fontSize: 13)),
+            const SizedBox(width: 3),
+            Text(
+              claimable ? 'Claim' : '${profile.streakDays}',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w800, color: color),
+            ),
+          ],
+        ),
       ),
     );
   }

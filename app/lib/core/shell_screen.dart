@@ -7,6 +7,7 @@ import '../features/market/data/market_repository.dart';
 import '../features/portfolio/data/portfolio_repository.dart';
 import '../features/portfolio/presentation/positions_bar.dart';
 import '../features/profile/data/profile_repository.dart';
+import '../features/profile/presentation/daily_reward_dialog.dart';
 import '../features/trading/data/trigger_alerts.dart';
 import 'format.dart';
 import 'theme.dart';
@@ -106,11 +107,26 @@ class ShellScreen extends ConsumerWidget {
     });
   }
 
+  /// Auto-open the daily-reward prompt once per session when it's claimable.
+  void _maybePromptDaily(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(myProfileProvider).value;
+    final shown = ref.watch(dailyPromptShownProvider);
+    if (profile != null && profile.canClaimDaily && !shown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!ref.read(dailyPromptShownProvider)) {
+          ref.read(dailyPromptShownProvider.notifier).state = true;
+          showDailyRewardDialog(context, ref);
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     _listenForTriggerFills(context, ref);
     _listenForLeveragedCloses(context, ref);
     _listenForLevelUp(context, ref);
+    _maybePromptDaily(context, ref);
     final wide = MediaQuery.sizeOf(context).width >= 800;
     if (wide) {
       return Scaffold(

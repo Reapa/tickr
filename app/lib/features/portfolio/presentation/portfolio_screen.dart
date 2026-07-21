@@ -9,6 +9,7 @@ import '../../../core/format.dart';
 import '../../../core/sector_colors.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
+import '../../../core/widgets/price_flash.dart';
 import '../../leverage/data/leverage_repository.dart';
 import '../../leverage/presentation/leverage_position_card.dart';
 import '../../market/data/market_repository.dart';
@@ -77,11 +78,19 @@ class PortfolioScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Net worth',
-                        style: Theme.of(context).textTheme.bodySmall),
-                    Text(
-                      Fmt.money(profile?.netWorth ?? cash + marketValue),
-                      style: Theme.of(context).textTheme.headlineMedium,
+                    Text('NET WORTH',
+                        style: TextStyle(
+                            fontSize: 10,
+                            letterSpacing: 1.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey.shade400)),
+                    const SizedBox(height: 2),
+                    AnimatedMoney(
+                      value: profile?.netWorth ?? cash + marketValue,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -98,7 +107,7 @@ class PortfolioScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            SizedBox(height: 180, child: _NetWorthChart()),
+            const _NetWorthChart(),
             const AllocationDonut(),
             if (sectorWeights.isNotEmpty)
               _DiversificationCard(weights: sectorWeights),
@@ -172,16 +181,82 @@ class _TodayStat extends ConsumerWidget {
   }
 }
 
-class _NetWorthChart extends ConsumerWidget {
+class _NetWorthChart extends ConsumerStatefulWidget {
+  const _NetWorthChart();
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(netWorthHistoryProvider).value;
-    if (history == null || history.length < 2) {
-      return const Center(
-          child: Text('Your portfolio chart appears after a few ticks…'));
+  ConsumerState<_NetWorthChart> createState() => _NetWorthChartState();
+}
+
+class _NetWorthChartState extends ConsumerState<_NetWorthChart> {
+  static const _ranges = <(String, Duration)>[
+    ('1H', Duration(hours: 1)),
+    ('1D', Duration(hours: 24)),
+    ('1W', Duration(days: 7)),
+  ];
+  int _range = 1; // default 1D
+
+  @override
+  Widget build(BuildContext context) {
+    final all = ref.watch(netWorthHistoryProvider).value;
+    final cutoff = DateTime.now().subtract(_ranges[_range].$2);
+    var history = (all ?? const [])
+        .where((p) => p.time.isAfter(cutoff))
+        .toList();
+    // Fall back to whatever we have if the window is too sparse.
+    if (history.length < 2 && all != null && all.length >= 2) {
+      history = all;
     }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 12, 0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              for (final (i, r) in _ranges.indexed)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _range = i),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _range == i
+                            ? AppTheme.brand.withValues(alpha: 0.16)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(r.$1,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _range == i
+                                  ? AppTheme.brand
+                                  : Colors.grey.shade500)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 160,
+          child: history.length < 2
+              ? const Center(
+                  child: Text('Your chart appears after a few ticks…'))
+              : _chart(history),
+        ),
+      ],
+    );
+  }
+
+  Widget _chart(List<NetWorthPoint> history) {
     final rising = history.last.netWorth >= history.first.netWorth;
     final color = rising ? AppTheme.up : AppTheme.down;
+    final lastX = history.last.time.millisecondsSinceEpoch.toDouble();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: LineChart(
@@ -194,7 +269,7 @@ class _NetWorthChart extends ConsumerWidget {
               getTooltipItems: (touched) => [
                 for (final spot in touched)
                   LineTooltipItem(Fmt.money(spot.y),
-                      const TextStyle(fontWeight: FontWeight.w600)),
+                      const TextStyle(fontWeight: FontWeight.w700)),
               ],
             ),
           ),
@@ -207,10 +282,28 @@ class _NetWorthChart extends ConsumerWidget {
               ],
               isCurved: false,
               color: color,
-              barWidth: 2,
-              dotData: const FlDotData(show: false),
-              belowBarData:
-                  BarAreaData(show: true, color: color.withValues(alpha: 0.12)),
+              barWidth: 2.5,
+              // Emphasize only the live endpoint.
+              dotData: FlDotData(
+                show: true,
+                checkToShowDot: (spot, _) => spot.x == lastX,
+                getDotPainter: (spot, pct, bar, i) => FlDotCirclePainter(
+                    radius: 4,
+                    color: color,
+                    strokeColor: AppTheme.background,
+                    strokeWidth: 2),
+              ),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    color.withValues(alpha: 0.22),
+                    color.withValues(alpha: 0.0)
+                  ],
+                ),
+              ),
             ),
           ],
         ),

@@ -25,6 +25,9 @@ class ProfileRepository {
 
   Future<void> updateDisplayName(String name) =>
       _client.rpc<void>('update_display_name', params: {'p_name': name});
+
+  Future<Map<String, dynamic>> claimDailyReward() =>
+      _client.rpc<Map<String, dynamic>>('claim_daily_reward');
 }
 
 final profileRepositoryProvider = Provider<ProfileRepository>(

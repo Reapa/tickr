@@ -154,7 +154,9 @@ class PortfolioRepository {
   }
 
   Future<List<NetWorthPoint>> fetchNetWorthHistory({
-    Duration window = const Duration(hours: 24),
+    // Fetch the full retained week so the chart's range chips can filter
+    // client-side without extra round trips.
+    Duration window = const Duration(days: 7),
   }) async {
     final since = DateTime.now().toUtc().subtract(window);
     final rows = await _client

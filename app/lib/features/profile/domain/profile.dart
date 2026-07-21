@@ -12,6 +12,9 @@ class Profile {
     required this.level,
     required this.premiumBalance,
     required this.equipped,
+    required this.streakDays,
+    required this.longestStreak,
+    required this.lastClaimDate,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
@@ -24,6 +27,11 @@ class Profile {
         level: jsonInt(json['level'], 1),
         premiumBalance: jsonInt(json['premium_balance']),
         equipped: (json['equipped'] as Map<String, dynamic>?) ?? const {},
+        streakDays: jsonInt(json['streak_days']),
+        longestStreak: jsonInt(json['longest_streak']),
+        lastClaimDate: (json['last_claim_date'] as String?) == null
+            ? null
+            : DateTime.parse(json['last_claim_date'] as String),
       );
 
   final String id;
@@ -35,6 +43,20 @@ class Profile {
   final int level;
   final int premiumBalance;
   final Map<String, dynamic> equipped;
+  final int streakDays;
+  final int longestStreak;
+  final DateTime? lastClaimDate;
+
+  /// Whether today's daily reward is still unclaimed (UTC day boundary,
+  /// matching the server's claim_daily_reward()).
+  bool get canClaimDaily {
+    final today = DateTime.now().toUtc();
+    final last = lastClaimDate;
+    if (last == null) return true;
+    return !(last.year == today.year &&
+        last.month == today.month &&
+        last.day == today.day);
+  }
 
   /// XP progress toward the next level, 0..1 (level curve: 100·level²).
   double get levelProgress {

@@ -14,6 +14,7 @@ import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
+import 'market_pulse.dart';
 import 'sparkline.dart';
 import 'ticker_tape.dart';
 import 'top_movers.dart';
@@ -118,6 +119,7 @@ class _MarketList extends ConsumerWidget {
               if (showMovers) ...[
                 const TickerTape(),
                 const Divider(height: 1),
+                const MarketPulse(),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Text('Top Movers · 24h',
@@ -176,7 +178,11 @@ class _AssetTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sectorColor = SectorColors.of(asset.sector);
     return Card(
-      child: InkWell(
+      clipBehavior: Clip.antiAlias,
+      child: FlashOnChange(
+        value: asset.currentPrice,
+        borderRadius: AppTheme.radius,
+        child: InkWell(
         borderRadius: BorderRadius.circular(AppTheme.radius),
         onTap: () => context.go('/market/asset/${asset.id}'),
         child: Padding(
@@ -261,6 +267,7 @@ class _AssetTile extends ConsumerWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }
