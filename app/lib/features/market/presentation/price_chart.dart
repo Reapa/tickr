@@ -156,18 +156,31 @@ class _CandleMode extends ConsumerWidget {
           child: Text('Not enough history for this interval yet…'));
     }
 
+    // Fold the live price into the forming (last) candle so it moves on every
+    // tick instead of only when the 10s server refetch lands.
+    final live = asset.currentPrice;
+    final last = candles.length - 1;
     final spots = <CandlestickSpot>[
       for (final (index, c) in candles.indexed)
-        CandlestickSpot(
-          x: index.toDouble(),
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        ),
+        if (index == last)
+          CandlestickSpot(
+            x: index.toDouble(),
+            open: c.open,
+            high: c.high < live ? live : c.high,
+            low: c.low > live ? live : c.low,
+            close: live,
+          )
+        else
+          CandlestickSpot(
+            x: index.toDouble(),
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+          ),
     ];
     final (minY, maxY) = _yRange(
-      candles.expand((c) => [c.low, c.high]),
+      [...candles.expand((c) => [c.low, c.high]), live],
       markers,
     );
     // Markers as thin horizontal bands (candlestick charts support range

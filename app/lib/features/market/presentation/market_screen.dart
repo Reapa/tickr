@@ -176,66 +176,90 @@ class _AssetTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sectorColor = SectorColors.of(asset.sector);
     return Card(
-      child: ListTile(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppTheme.radius),
         onTap: () => context.go('/market/asset/${asset.id}'),
-        leading: CircleAvatar(
-          backgroundColor: sectorColor.withValues(alpha: 0.22),
-          child: Text(
-            asset.symbol.substring(0, asset.symbol.length.clamp(0, 2)),
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: sectorColor,
-            ),
-          ),
-        ),
-        title: Row(
-          children: [
-            Flexible(
-              child: Text('${asset.symbol} · ${asset.name}',
-                  overflow: TextOverflow.ellipsis),
-            ),
-            if (asset.marketHours == '24_7') ...[
-              const SizedBox(width: 6),
-              const _MiniBadge(text: '24/7', color: AppTheme.up),
-            ] else if (!asset.isMarketOpenNow) ...[
-              const SizedBox(width: 6),
-              const _MiniBadge(text: 'CLOSED', color: Colors.orange),
-            ],
-          ],
-        ),
-        subtitle: Text.rich(
-          TextSpan(children: [
-            TextSpan(
-              text: asset.sector.toUpperCase(),
-              style: TextStyle(color: sectorColor.withValues(alpha: 0.9)),
-            ),
-            TextSpan(
-              text: '  ·  spread ${(asset.spread * 100).toStringAsFixed(2)}%',
-              style: TextStyle(color: Colors.grey.shade500),
-            ),
-          ]),
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Sparkline(assetId: asset.id),
-            const SizedBox(width: 12),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                PriceFlash(
-                  price: asset.currentPrice,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          child: Row(
+            children: [
+              // Ticker badge
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: sectorColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: sectorColor.withValues(alpha: 0.35)),
                 ),
-                const SizedBox(height: 2),
-                ChangeBadge(
-                    assetId: asset.id, currentPrice: asset.currentPrice),
-              ],
-            ),
-          ],
+                child: Text(
+                  asset.symbol.substring(0, asset.symbol.length.clamp(0, 2)),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: sectorColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Name + sector/spread
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Text(asset.symbol,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 15)),
+                        if (asset.marketHours == '24_7') ...[
+                          const SizedBox(width: 6),
+                          const _MiniBadge(text: '24/7', color: AppTheme.up),
+                        ] else if (!asset.isMarketOpenNow) ...[
+                          const SizedBox(width: 6),
+                          const _MiniBadge(
+                              text: 'CLOSED', color: Colors.orange),
+                        ],
+                      ],
+                    ),
+                    Text(asset.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade400)),
+                    const SizedBox(height: 1),
+                    Text(
+                      '${asset.sector.toUpperCase()} · spread ${(asset.spread * 100).toStringAsFixed(2)}%',
+                      style:
+                          TextStyle(fontSize: 10.5, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Sparkline(assetId: asset.id, width: 46),
+              const SizedBox(width: 12),
+              // Price + change — always visible, prominent.
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  PriceFlash(
+                    price: asset.currentPrice,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        fontFeatures: [FontFeature.tabularFigures()]),
+                  ),
+                  const SizedBox(height: 3),
+                  ChangeBadge(
+                      assetId: asset.id, currentPrice: asset.currentPrice),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

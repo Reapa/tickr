@@ -265,15 +265,16 @@ class _LeverageButton extends ConsumerWidget {
     final unlocked =
         ref.watch(unlockedClassesProvider).value?.contains('margin') ?? false;
     final open = asset.isMarketOpenNow;
-    return FilledButton(
+    return FilledButton.icon(
       style: FilledButton.styleFrom(
           backgroundColor: AppTheme.gold, foregroundColor: Colors.black),
+      icon: const Icon(Icons.bolt, size: 18, color: Colors.black),
       onPressed: !open
           ? null
           : () => unlocked
               ? showLeverageSheet(context, asset)
               : _offerUnlock(context, ref),
-      child: Text(unlocked ? '⚡ Leverage' : '⚡ Unlock'),
+      label: Text(unlocked ? 'Leverage' : 'Unlock'),
     );
   }
 
