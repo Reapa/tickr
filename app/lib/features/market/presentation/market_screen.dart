@@ -38,13 +38,13 @@ class MarketScreen extends ConsumerWidget {
               child: Center(child: ConceptChip(Concepts.supplyDemand)),
             ),
           ],
-          bottom: const TabBar(isScrollable: true, tabs: [
-            Tab(text: '📈 Stocks'),
-            Tab(text: '🏢 Real Estate'),
-            Tab(text: '🏭 Companies'),
-            Tab(text: '₿ Crypto'),
-            Tab(text: '💱 Forex'),
-            Tab(text: '📰 News'),
+          bottom: const _CategoryTabBar(items: [
+            (icon: Icons.trending_up, label: 'Stocks'),
+            (icon: Icons.apartment, label: 'Real Estate'),
+            (icon: Icons.business_center, label: 'Companies'),
+            (icon: Icons.currency_bitcoin, label: 'Crypto'),
+            (icon: Icons.currency_exchange, label: 'Forex'),
+            (icon: Icons.article_outlined, label: 'News'),
           ]),
         ),
         body: const TabBarView(children: [
@@ -76,6 +76,107 @@ class MarketScreen extends ConsumerWidget {
           ),
           _NewsTab(),
         ]),
+      ),
+    );
+  }
+}
+
+/// Modern pill-style category selector for the market desks. Driven by the
+/// ambient DefaultTabController, so TabBarView stays in sync.
+class _CategoryTabBar extends StatefulWidget implements PreferredSizeWidget {
+  const _CategoryTabBar({required this.items});
+
+  final List<({IconData icon, String label})> items;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(58);
+
+  @override
+  State<_CategoryTabBar> createState() => _CategoryTabBarState();
+}
+
+class _CategoryTabBarState extends State<_CategoryTabBar> {
+  final _scroll = ScrollController();
+  TabController? _controller;
+
+  void _onTab() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final c = DefaultTabController.of(context);
+    if (c != _controller) {
+      _controller?.removeListener(_onTab);
+      _controller = c..addListener(_onTab);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onTab);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final index = _controller?.index ?? 0;
+    return SizedBox(
+      height: 58,
+      child: ListView.builder(
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+        itemCount: widget.items.length,
+        itemBuilder: (context, i) {
+          final selected = i == index;
+          final item = widget.items[i];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => _controller?.animateTo(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: selected ? AppTheme.brandGradient : null,
+                  color: selected ? null : AppTheme.surfaceHigh,
+                  border: Border.all(
+                      color: selected
+                          ? Colors.transparent
+                          : AppTheme.hairline),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                              color: AppTheme.brand.withValues(alpha: 0.3),
+                              blurRadius: 10)
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    Icon(item.icon,
+                        size: 16,
+                        color: selected ? Colors.black : Colors.grey.shade400),
+                    const SizedBox(width: 6),
+                    Text(item.label,
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: selected
+                                ? Colors.black
+                                : Colors.grey.shade300)),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
