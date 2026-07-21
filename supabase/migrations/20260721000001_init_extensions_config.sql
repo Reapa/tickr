@@ -2,8 +2,11 @@
 -- Migration 1: extensions, game configuration, shared helpers
 -- ============================================================================
 
--- gen_random_uuid() is built into Postgres 13+, pgcrypto adds digest() etc.
-create extension if not exists pgcrypto;
+-- gen_random_uuid() is built into Postgres 13+, pgcrypto adds gen_random_bytes()
+-- etc. Supabase installs extensions into the "extensions" schema, so calls are
+-- schema-qualified below.
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 -- pg_cron drives the market tick on hosted Supabase. It may be unavailable in
 -- some local setups, so the actual cron.schedule() call (migration 8) is
@@ -75,7 +78,7 @@ volatile
 as $$
   select 'TG-' || upper(
     translate(
-      substr(encode(gen_random_bytes(8), 'base64'), 1, 6),
+      substr(encode(extensions.gen_random_bytes(8), 'base64'), 1, 6),
       'O0Il+/=', 'ABCDEFG'  -- avoid ambiguous / non-alphanumeric characters
     )
   );

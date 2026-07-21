@@ -7,7 +7,18 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions, game;
 
-select plan(36);
+select plan(37);
+
+-- ---------------------------------------------------------------------------
+-- Fixture: the market is LIVE (pg_cron ticks every 5s), so pin the assets
+-- under test back to known prices inside this transaction. The row locks
+-- this takes also hold concurrent ticks off until we roll back, keeping
+-- every fill below deterministic.
+-- ---------------------------------------------------------------------------
+update public.assets set current_price = 182.50, fair_value = 182.50, flow = 0
+ where symbol = 'NBLA';
+update public.assets set current_price = 1250.00, fair_value = 1250.00, flow = 0
+ where symbol = 'DWTN';
 
 -- ---------------------------------------------------------------------------
 -- Fixture: sign up Alice through the real auth trigger.
@@ -53,7 +64,9 @@ select is(cash_balance, 8423.17::numeric(18,2),
 select is(quantity, 10.0000::numeric(18,4), 'holding created with bought quantity')
   from holdings where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
    and asset_id = (select id from assets where symbol = 'NBLA');
-select is(avg_cost, 182.6825::numeric(18,4), 'avg cost equals fill price')
+-- Cost basis derives from actual cash moved (notional rounded to cents:
+-- 1826.83 / 10), not the quoted price — so it always reconciles to the ledger.
+select is(avg_cost, 182.6830::numeric(18,4), 'avg cost = cash spent / units bought')
   from holdings where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
    and asset_id = (select id from assets where symbol = 'NBLA');
 select is(xp, 60, 'xp = 10 per trade + 50 mission reward')
@@ -77,7 +90,7 @@ select is(cash_balance, 9152.44::numeric(18,2), 'sell proceeds credited')
 select is(quantity, 6.0000::numeric(18,4), 'holding reduced')
   from holdings where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
    and asset_id = (select id from assets where symbol = 'NBLA');
-select is(avg_cost, 182.6825::numeric(18,4), 'avg cost unchanged by sells')
+select is(avg_cost, 182.6830::numeric(18,4), 'avg cost unchanged by sells')
   from holdings where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
    and asset_id = (select id from assets where symbol = 'NBLA');
 
