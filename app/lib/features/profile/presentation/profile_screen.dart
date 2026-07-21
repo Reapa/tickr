@@ -10,6 +10,7 @@ import '../../market/data/market_repository.dart';
 import '../../market/domain/asset.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/profile_repository.dart';
+import '../domain/profile.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -40,63 +41,93 @@ class ProfileScreen extends ConsumerWidget {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
+                // Trader card
                 Card(
-                  child: Padding(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppTheme.radius),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          AppTheme.brand.withValues(alpha: 0.16),
+                          AppTheme.surface,
+                          AppTheme.accent.withValues(alpha: 0.10),
+                        ],
+                      ),
+                    ),
                     padding: const EdgeInsets.all(16),
-                    child: Row(
+                    child: Column(
                       children: [
-                        CircleAvatar(
-                          radius: 28,
-                          child: Text(
-                            profile.displayName.substring(0, 1).toUpperCase(),
-                            style: const TextStyle(fontSize: 22),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                        Row(
+                          children: [
+                            _LevelRingAvatar(profile: profile),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Flexible(
-                                    child: Text(
-                                      profile.displayName,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(profile.displayName,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleLarge
+                                                ?.copyWith(
+                                                    fontWeight: FontWeight.w800),
+                                            overflow: TextOverflow.ellipsis),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.edit, size: 15),
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: () => _editName(
+                                            context, ref, profile.displayName),
+                                      ),
+                                    ],
                                   ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, size: 16),
-                                    onPressed: () =>
-                                        _editName(context, ref, profile.displayName),
+                                  Text('Level ${profile.level} · ${profile.xp} XP',
+                                      style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 13)),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      _TinyChip(
+                                          icon: Icons.tag,
+                                          label: profile.friendCode),
+                                      const SizedBox(width: 8),
+                                      _TinyChip(
+                                          icon: Icons.local_fire_department,
+                                          label: '${profile.streakDays}d',
+                                          color: AppTheme.gold),
+                                    ],
                                   ),
                                 ],
                               ),
-                              Text('Level ${profile.level} · ${profile.xp} XP'),
-                              const SizedBox(height: 4),
-                              LinearProgressIndicator(
-                                  value: profile.levelProgress),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _Stat('Net worth', Fmt.money(profile.netWorth)),
-                        _Stat('Cash', Fmt.money(profile.cashBalance)),
-                        _Stat('Gems', '${profile.premiumBalance}'),
-                      ],
-                    ),
+                // Career stat grid
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Column(
+                    children: [
+                      Row(children: [
+                        _StatTile(label: 'NET WORTH', value: Fmt.moneyCompact(profile.netWorth)),
+                        _StatTile(label: 'CASH', value: Fmt.moneyCompact(profile.cashBalance)),
+                        _StatTile(label: 'GEMS', value: '${profile.premiumBalance}', color: AppTheme.accent),
+                      ]),
+                      Row(children: [
+                        _StatTile(label: 'STREAK', value: '${profile.streakDays}d', color: AppTheme.gold),
+                        _StatTile(label: 'BEST STREAK', value: '${profile.longestStreak}d'),
+                        _StatTile(label: 'LEVEL', value: '${profile.level}', color: AppTheme.brand),
+                      ]),
+                    ],
                   ),
                 ),
                 Padding(
@@ -146,19 +177,127 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat(this.label, this.value);
+/// Avatar wrapped in a level-progress ring with a level badge.
+class _LevelRingAvatar extends StatelessWidget {
+  const _LevelRingAvatar({required this.profile});
 
-  final String label;
-  final String value;
+  final Profile profile;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
-      ],
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: CircularProgressIndicator(
+              value: profile.levelProgress,
+              strokeWidth: 4,
+              backgroundColor: AppTheme.hairline,
+              valueColor: const AlwaysStoppedAnimation(AppTheme.brand),
+            ),
+          ),
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: AppTheme.brand.withValues(alpha: 0.18),
+            child: Text(
+              profile.displayName.characters.first.toUpperCase(),
+              style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.brand),
+            ),
+          ),
+          Positioned(
+            bottom: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppTheme.brand,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.surface, width: 2),
+              ),
+              child: Text('${profile.level}',
+                  style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 11)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TinyChip extends StatelessWidget {
+  const _TinyChip(
+      {required this.icon, required this.label, this.color = Colors.grey});
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceHigh,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: AppTheme.hairline),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  const _StatTile({required this.label, required this.value, this.color});
+
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Card(
+        margin: const EdgeInsets.all(4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Column(
+            children: [
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 8.5,
+                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

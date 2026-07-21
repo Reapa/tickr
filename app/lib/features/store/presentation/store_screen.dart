@@ -157,11 +157,41 @@ class _CosmeticTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final rarity = _rarityColors[cosmetic.rarity] ?? Colors.grey;
+    final rare = cosmetic.rarity == 'epic' || cosmetic.rarity == 'legendary';
     return Card(
+      // Owned/rare items get a rarity-tinted border and glow.
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radius),
+        side: BorderSide(
+            color: rarity.withValues(alpha: owned || rare ? 0.55 : 0.18)),
+      ),
+      shadowColor: rarity,
+      elevation: rare ? 6 : 0,
       child: ListTile(
-        leading: Icon(Icons.auto_awesome,
-            color: _rarityColors[cosmetic.rarity] ?? Colors.grey),
-        title: Text(cosmetic.name),
+        leading: Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: rarity.withValues(alpha: 0.16),
+            border: Border.all(color: rarity.withValues(alpha: 0.5)),
+          ),
+          child: Icon(Icons.auto_awesome, size: 20, color: rarity),
+        ),
+        title: Row(
+          children: [
+            Flexible(child: Text(cosmetic.name, overflow: TextOverflow.ellipsis)),
+            const SizedBox(width: 6),
+            Text(cosmetic.rarity.toUpperCase(),
+                style: TextStyle(
+                    fontSize: 8,
+                    letterSpacing: 0.5,
+                    fontWeight: FontWeight.w800,
+                    color: rarity)),
+          ],
+        ),
         subtitle: Text(
           cosmetic.isSeasonReward
               ? '${cosmetic.description}\nSeason reward — cannot be bought'
