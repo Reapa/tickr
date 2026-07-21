@@ -151,6 +151,7 @@ begin
       from public.orders o
       join public.assets a on a.id = o.asset_id
      where o.status = 'pending' and o.side = 'sell'
+       and game.is_market_open(a.market_hours)
        and (   (o.order_type = 'limit'
                 and a.current_price * (1 - a.spread / 2) >= o.limit_price)
             or (o.order_type = 'stop'

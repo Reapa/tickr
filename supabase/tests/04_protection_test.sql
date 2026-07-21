@@ -19,6 +19,9 @@ set search_path = public, extensions, game;
 -- ticks no-op instead of blocking on our pinned rows.
 select pg_advisory_xact_lock(hashtext('game.market_tick'));
 
+-- Trading-hours override: these suites must pass at any wall-clock time.
+update public.game_config set value = 'true' where key = 'markets_always_open';
+
 select plan(22);
 
 update public.assets set current_price = 182.50, fair_value = 182.50, flow = 0

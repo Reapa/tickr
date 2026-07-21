@@ -45,12 +45,15 @@ begin
   if v_tpl.scope = 'asset' then
     select a.* into v_asset from public.assets a
      where a.is_active and (v_tpl.class_id is null or a.class_id = v_tpl.class_id)
+       and game.is_market_open(a.market_hours)
      order by random() limit 1;
     if not found then return; end if;
     v_sector := v_asset.sector;
   elsif v_tpl.scope = 'sector' then
     select a.sector into v_sector from public.assets a
-     where a.is_active order by random() limit 1;
+     where a.is_active and (v_tpl.class_id is null or a.class_id = v_tpl.class_id)
+       and game.is_market_open(a.market_hours)
+     order by random() limit 1;
     if not found then return; end if;
   end if;
 
@@ -118,7 +121,7 @@ begin
     update public.assets a
        set fair_value = greatest(0.01, a.fair_value * (1 + p.fv_impact))
       from pending p
-     where a.is_active
+     where a.is_active and game.is_market_open(a.market_hours)
        and (   (p.scope = 'asset'  and a.id = p.asset_id)
             or (p.scope = 'sector' and a.sector = p.sector)
             or  p.scope = 'market')
@@ -144,7 +147,7 @@ begin
   draws as (
     select a.id as asset_id, game.random_normal() as z
       from public.assets a
-     where a.is_active
+     where a.is_active and game.is_market_open(a.market_hours)
   )
   update public.assets a
      set fair_value = greatest(0.01,
@@ -172,7 +175,8 @@ begin
 
   -- 4. Record public ticks; prune history beyond retention.
   insert into public.price_ticks (asset_id, price)
-  select id, current_price from public.assets where is_active;
+  select id, current_price from public.assets
+   where is_active and game.is_market_open(market_hours);
 
   delete from public.price_ticks
    where tick_at < now() - make_interval(days => v_retention::int);

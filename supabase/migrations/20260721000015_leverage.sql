@@ -118,6 +118,9 @@ begin
   select * into v_asset from public.assets where id = p_asset_id and is_active
   for update;
   if not found then raise exception 'unknown or inactive asset'; end if;
+  if not game.is_market_open(v_asset.market_hours) then
+    return jsonb_build_object('status', 'rejected', 'reason', 'market closed');
+  end if;
 
   select * into v_profile from public.profiles where id = v_user for update;
 
@@ -232,6 +235,10 @@ begin
   if not found then raise exception 'no open position to close'; end if;
 
   select * into v_asset from public.assets where id = v_pos.asset_id for update;
+  if not game.is_market_open(v_asset.market_hours) then
+    return jsonb_build_object('status', 'rejected',
+      'reason', 'market closed — position frozen until it reopens');
+  end if;
   v_exit := round(v_asset.current_price *
               (1 + case when v_pos.side = 'long' then -1 else 1 end
                    * v_asset.spread / 2), 4);
@@ -324,6 +331,7 @@ begin
       from public.leveraged_positions lp
       join public.assets a on a.id = lp.asset_id
      where lp.status = 'open'
+       and game.is_market_open(a.market_hours)
      order by lp.opened_at
      for update of lp
   loop

@@ -10,7 +10,9 @@ insert into public.asset_classes (id, name, description, unlock_cost, is_enabled
   ('stocks',      'Stocks',      'Shares in fictional companies across five sectors. Free to trade from day one.', 0, true, 1),
   ('real_estate', 'Real Estate', 'Property funds: slower-moving, steadier income-style assets. Buy your way in.', 50000, true, 2),
   ('companies',   'Companies',   'Own entire private companies. Coming soon.', 250000, false, 3),
-  ('margin',      'Broker License', 'Trade with leverage: control 5-100x your stake, long or short. High risk, high reward — you can lose your whole margin.', 25000, true, 4);
+  ('margin',      'Broker License', 'Trade with leverage: control 5-100x your stake, long or short. High risk, high reward — you can lose your whole margin.', 25000, true, 4),
+  ('crypto',      'Crypto',      'The 24/7 casino: wildly volatile coins that never stop trading. Weekends belong to crypto.', 2500, true, 5),
+  ('forex',       'Forex',       'Currency pairs: tiny moves, huge liquidity, open 24/5. Where leverage earns its keep.', 10000, true, 6);
 
 -- ----------------------------------------------------------------------------
 -- Stocks: 16 across 5 sectors. Volatility/liquidity tuned per personality:
@@ -65,6 +67,28 @@ insert into public.assets
   ('CO-TED',  'The Tedious Company', 'companies', 'private', 'Digs tunnels. Very slowly. Very expensively.',          120000.00,120000.00, 0.06, 0.18, 1000000, 0.02, 0.10, 0.0100, false);
 
 -- ----------------------------------------------------------------------------
+-- Crypto: 24/7, extreme volatility, thin books. For the courageous.
+-- ----------------------------------------------------------------------------
+insert into public.assets
+  (symbol, name, class_id, sector, description,
+   current_price, fair_value, drift, base_volatility, liquidity, impact_coef, reversion_speed, spread, market_hours) values
+  ('BTCN', 'Bitcorn',   'crypto', 'crypto', 'Digital gold, allegedly. Never sleeps.',                 67500.00, 67500.00, 0.10, 1.20, 400000, 0.05, 0.20, 0.0010, '24_7'),
+  ('ETHR', 'Ethereal',  'crypto', 'crypto', 'Programmable money and expensive digital art.',            3520.00,  3520.00, 0.10, 1.50, 160000, 0.06, 0.20, 0.0015, '24_7'),
+  ('SOLM', 'Solami',    'crypto', 'crypto', 'Very fast. Occasionally very offline.',                     152.00,   152.00, 0.12, 1.80,  60000, 0.08, 0.20, 0.0025, '24_7'),
+  ('DOGR', 'Dogercoin', 'crypto', 'crypto', 'A joke that refuses to die. Much volatile. Wow.',             0.1250,   0.1250, 0.00, 2.50,   8000, 0.10, 0.15, 0.0050, '24_7');
+
+-- ----------------------------------------------------------------------------
+-- Forex: 24/5, tiny moves, deep liquidity — leverage country.
+-- ----------------------------------------------------------------------------
+insert into public.assets
+  (symbol, name, class_id, sector, description,
+   current_price, fair_value, drift, base_volatility, liquidity, impact_coef, reversion_speed, spread, market_hours) values
+  ('EURUSD', 'Euro vs Dollar',   'forex', 'forex', 'The world''s most traded pair.',            1.0850, 1.0850, 0.00, 0.08, 800000, 0.010, 0.40, 0.0002, '24_5'),
+  ('GBPUSD', 'Pound vs Dollar',  'forex', 'forex', 'Cable: prone to political drama.',          1.2700, 1.2700, 0.00, 0.10, 600000, 0.010, 0.40, 0.0002, '24_5'),
+  ('USDJPY', 'Dollar vs Yen',    'forex', 'forex', 'The carry-trade classic.',                148.5000,148.5000, 0.00, 0.09, 700000, 0.010, 0.40, 0.0002, '24_5'),
+  ('AUDUSD', 'Aussie vs Dollar', 'forex', 'forex', 'Rides commodity booms and busts.',          0.6550, 0.6550, 0.00, 0.11, 400000, 0.015, 0.40, 0.0003, '24_5');
+
+-- ----------------------------------------------------------------------------
 -- Event templates: the news generator. Weights skew toward mild sector/asset
 -- news; big macro shocks are rare. Durations = how long volatility stays high.
 -- ----------------------------------------------------------------------------
@@ -111,7 +135,19 @@ insert into public.event_templates
    0.02, 0.06, 1.3, 1200, 1, 'real_estate'),
   ('storm_damage',   'asset',  'Storm damage hits {name}',
    'A severe storm damaged properties held by {symbol}. Repair costs loom.',
-   -0.10, -0.04, 1.8, 1400, 0.8, 'real_estate');
+   -0.10, -0.04, 1.8, 1400, 0.8, 'real_estate'),
+  ('crypto_pump',    'asset',  '{name} goes parabolic',
+   'ETF rumors, moon math, and pure momentum send {symbol} vertical.',
+   0.08, 0.30, 2.2, 900, 1.5, 'crypto'),
+  ('crypto_dump',    'asset',  'Whale dumps {name}',
+   'A single wallet just moved a fortune in {symbol} onto an exchange. It sold.',
+   -0.30, -0.10, 2.5, 900, 1.5, 'crypto'),
+  ('crypto_regs',    'sector', 'Regulators take aim at crypto',
+   'New rules proposed for digital assets. The market does not love rules.',
+   -0.15, -0.05, 1.8, 1200, 0.8, 'crypto'),
+  ('rate_decision',  'sector', 'Central banks jolt currency markets',
+   'A surprise rate decision ripples through the major pairs.',
+   -0.02, 0.02, 1.6, 1200, 1, 'forex');
 
 -- ----------------------------------------------------------------------------
 -- Missions: the educational layer. Each teaches one concept by doing.

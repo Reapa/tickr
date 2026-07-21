@@ -11,6 +11,9 @@ set search_path = public, extensions, game;
 -- ticks no-op instead of blocking on our pinned rows.
 select pg_advisory_xact_lock(hashtext('game.market_tick'));
 
+-- Trading-hours override: these suites must pass at any wall-clock time.
+update public.game_config set value = 'true' where key = 'markets_always_open';
+
 select plan(22);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data) values

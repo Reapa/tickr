@@ -62,7 +62,9 @@ begin
   v_notional := round(v_price * p_quantity, 2);
 
   -- Validation with persisted rejections.
-  if not game.has_class_unlock(v_user, v_asset.class_id) then
+  if not game.is_market_open(v_asset.market_hours) then
+    v_reason := 'market closed';
+  elsif not game.has_class_unlock(v_user, v_asset.class_id) then
     v_reason := 'asset class locked';
   elsif v_notional > game.config_numeric('max_order_notional') then
     v_reason := 'order too large';
