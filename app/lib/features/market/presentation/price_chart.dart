@@ -169,7 +169,9 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
     }
 
     final total = candles.length;
-    final visible = _visible.clamp(8, total).round();
+    // Guard: with fewer than 8 candles the lower bound would exceed total.
+    final minVisible = total < 8 ? total : 8;
+    final visible = _visible.clamp(minVisible, total).round();
     final fromEnd = _fromEnd.clamp(0, total - visible).round();
     final right = total - fromEnd; // exclusive
     final start = right - visible;
@@ -205,7 +207,8 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
     final bandHalf = (maxY - minY) * 0.0025;
 
     void zoom(double factor) => setState(() {
-          _visible = (_visible * factor).clamp(8, total.toDouble());
+          _visible = (_visible * factor)
+              .clamp(minVisible.toDouble(), total.toDouble());
         });
 
     return Padding(
@@ -225,7 +228,7 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                     // Pinch → zoom (fewer candles as you spread fingers).
                     if (details.scale != 1.0) {
                       _visible = (_scaleStartVisible / details.scale)
-                          .clamp(8, total.toDouble());
+                          .clamp(minVisible.toDouble(), total.toDouble());
                     }
                     // Drag → pan back/forward through history.
                     final candleW = chartWidth / visible;
