@@ -5,12 +5,8 @@
       <stop offset="0.55" stop-color="#0C1119"/>
       <stop offset="1" stop-color="#070A11"/>
     </linearGradient>
-    <linearGradient id="mark" x1="0.1" y1="1" x2="0.9" y2="0">
-      <stop offset="0" stop-color="#4DA3FF"/>
-      <stop offset="1" stop-color="#3DE1C4"/>
-    </linearGradient>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="48"/>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="26"/>
     </filter>
   </defs>
 
@@ -18,15 +14,17 @@
   <rect x="2" y="2" width="1020" height="1020" rx="230" fill="none"
         stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="3"/>
 
-  <!-- glow behind the mark -->
-  <path d="M250 700 L468 548 L792 300" fill="none" stroke="#3DE1C4"
-        stroke-opacity="0.45" stroke-width="86"
-        stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
-
-  <!-- breakout line + up-right arrowhead -->
-  <g fill="none" stroke="url(#mark)" stroke-width="94"
-     stroke-linecap="round" stroke-linejoin="round">
-    <path d="M250 700 L468 548 L792 300"/>
-    <path d="M646 300 L792 300 L792 446"/>
+  <!-- soft glow behind the candles -->
+  <g filter="url(#glow)" opacity="0.5">
+    <rect x="360" y="392" width="120" height="272" rx="20" fill="#FF5A52"/>
+    <rect x="544" y="320" width="120" height="344" rx="20" fill="#2BD98A"/>
   </g>
+
+  <!-- down candle (red) -->
+  <line x1="420" y1="300" x2="420" y2="772" stroke="#FF5A52" stroke-width="30" stroke-linecap="round"/>
+  <rect x="360" y="392" width="120" height="272" rx="20" fill="#FF5A52"/>
+
+  <!-- up candle (green), taller and higher -->
+  <line x1="604" y1="250" x2="604" y2="742" stroke="#2BD98A" stroke-width="30" stroke-linecap="round"/>
+  <rect x="544" y="320" width="120" height="344" rx="20" fill="#2BD98A"/>
 </svg>

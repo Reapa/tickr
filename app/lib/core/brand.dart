@@ -39,39 +39,42 @@ class TickrMark extends StatelessWidget {
 }
 
 class _TickrMarkPainter extends CustomPainter {
-  // Mark geometry matches the app icon (a breakout arrow, up and to the right),
-  // authored in a 1024 space and fitted into the widget box.
-  static const _bx0 = 250.0, _by0 = 300.0, _bx1 = 792.0, _by1 = 700.0;
-
+  // Two candlesticks (a down candle then a taller up candle), authored in a
+  // 50×52 space and fitted into the widget box. Uses the app's up/down colors
+  // so the brand speaks the same language as the market.
   @override
   void paint(Canvas canvas, Size size) {
-    const bw = _bx1 - _bx0, bh = _by1 - _by0;
-    const pad = 0.06;
+    const bx0 = 9.0, by0 = 4.0, bx1 = 41.0, by1 = 46.0;
+    const bw = bx1 - bx0, bh = by1 - by0;
+    const pad = 0.08;
     final avail = size.shortestSide * (1 - 2 * pad);
     final scale = avail / (bw > bh ? bw : bh);
-    final dx = (size.width - bw * scale) / 2 - _bx0 * scale;
-    final dy = (size.height - bh * scale) / 2 - _by0 * scale;
+    final dx = (size.width - bw * scale) / 2 - bx0 * scale;
+    final dy = (size.height - bh * scale) / 2 - by0 * scale;
     double x(double v) => v * scale + dx;
     double y(double v) => v * scale + dy;
 
-    final paint = Paint()
-      ..shader = Brand.gradient.createShader(Offset.zero & size)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 94 * scale
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    void candle(Color c, double cx, double wickTop, double wickBot,
+        double bodyTop, double bodyBot) {
+      canvas.drawLine(
+        Offset(x(cx), y(wickTop)),
+        Offset(x(cx), y(wickBot)),
+        Paint()
+          ..color = c
+          ..strokeWidth = 3 * scale
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(x(cx - 6), y(bodyTop), x(cx + 6), y(bodyBot)),
+          Radius.circular(3 * scale),
+        ),
+        Paint()..color = c,
+      );
+    }
 
-    final line = Path()
-      ..moveTo(x(250), y(700))
-      ..lineTo(x(468), y(548))
-      ..lineTo(x(792), y(300));
-    final head = Path()
-      ..moveTo(x(646), y(300))
-      ..lineTo(x(792), y(300))
-      ..lineTo(x(792), y(446));
-    canvas
-      ..drawPath(line, paint)
-      ..drawPath(head, paint);
+    candle(AppTheme.down, 15, 8, 46, 16, 36); // down (red)
+    candle(AppTheme.up, 35, 4, 44, 12, 36); // up (green), taller
   }
 
   @override
