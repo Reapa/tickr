@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#182233"/>
+      <stop offset="0.55" stop-color="#0C1119"/>
+      <stop offset="1" stop-color="#070A11"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0.1" y1="1" x2="0.9" y2="0">
+      <stop offset="0" stop-color="#4DA3FF"/>
+      <stop offset="1" stop-color="#3DE1C4"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+  </defs>
+
+  <!-- full-bleed background (the OS applies the mask/rounding) -->
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- mark scaled ~78% into the maskable safe zone -->
+  <g transform="translate(512 512) scale(0.8) translate(-512 -512)">
+    <path d="M250 700 L468 548 L792 300" fill="none" stroke="#3DE1C4"
+          stroke-opacity="0.45" stroke-width="86"
+          stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+    <g fill="none" stroke="url(#mark)" stroke-width="94"
+       stroke-linecap="round" stroke-linejoin="round">
+      <path d="M250 700 L468 548 L792 300"/>
+      <path d="M646 300 L792 300 L792 446"/>
+    </g>
+  </g>
+</svg>

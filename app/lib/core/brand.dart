@@ -39,32 +39,39 @@ class TickrMark extends StatelessWidget {
 }
 
 class _TickrMarkPainter extends CustomPainter {
+  // Mark geometry matches the app icon (a breakout arrow, up and to the right),
+  // authored in a 1024 space and fitted into the widget box.
+  static const _bx0 = 250.0, _by0 = 300.0, _bx1 = 792.0, _by1 = 700.0;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final shader = Brand.gradient.createShader(Offset.zero & size);
-    final bar = Paint()
-      ..shader = shader
-      ..strokeCap = StrokeCap.round
+    const bw = _bx1 - _bx0, bh = _by1 - _by0;
+    const pad = 0.06;
+    final avail = size.shortestSide * (1 - 2 * pad);
+    final scale = avail / (bw > bh ? bw : bh);
+    final dx = (size.width - bw * scale) / 2 - _bx0 * scale;
+    final dy = (size.height - bh * scale) / 2 - _by0 * scale;
+    double x(double v) => v * scale + dx;
+    double y(double v) => v * scale + dy;
+
+    final paint = Paint()
+      ..shader = Brand.gradient.createShader(Offset.zero & size)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.11;
+      ..strokeWidth = 94 * scale
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
 
-    // Three ascending bars.
-    final baseY = h * 0.86;
-    final xs = [w * 0.2, w * 0.4, w * 0.6];
-    final tops = [h * 0.62, h * 0.44, h * 0.26];
-    for (var i = 0; i < 3; i++) {
-      canvas.drawLine(Offset(xs[i], baseY), Offset(xs[i], tops[i]), bar);
-    }
-
-    // Rising triangle apex (the "tick" up).
-    final apex = Path()
-      ..moveTo(w * 0.52, h * 0.36)
-      ..lineTo(w * 0.86, h * 0.14)
-      ..lineTo(w * 0.86, h * 0.42)
-      ..close();
-    canvas.drawPath(apex, Paint()..shader = shader);
+    final line = Path()
+      ..moveTo(x(250), y(700))
+      ..lineTo(x(468), y(548))
+      ..lineTo(x(792), y(300));
+    final head = Path()
+      ..moveTo(x(646), y(300))
+      ..lineTo(x(792), y(300))
+      ..lineTo(x(792), y(446));
+    canvas
+      ..drawPath(line, paint)
+      ..drawPath(head, paint);
   }
 
   @override
