@@ -1,4 +1,3 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,11 +5,12 @@ import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
+import '../../../core/widgets/price_flash.dart';
 import '../../portfolio/data/portfolio_repository.dart';
 import '../../trading/presentation/order_ticket.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
-import '../domain/market_event.dart';
+import 'price_chart.dart';
 import 'widgets.dart';
 
 class AssetDetailScreen extends ConsumerWidget {
@@ -54,8 +54,8 @@ class AssetDetailScreen extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  Fmt.money(asset.currentPrice),
+                PriceFlash(
+                  price: asset.currentPrice,
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(width: 12),
@@ -67,7 +67,7 @@ class AssetDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          SizedBox(height: 220, child: _PriceChart(asset: asset)),
+          SizedBox(height: 280, child: PriceChart(asset: asset)),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Wrap(
@@ -169,68 +169,3 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _PriceChart extends ConsumerWidget {
-  const _PriceChart({required this.asset});
-
-  final Asset asset;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(priceHistoryProvider(asset.id));
-    final fetched = history.value;
-    if (fetched == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    // History refreshes every 15s; the live price (updated every tick via
-    // Realtime) is appended so the chart's right edge never lags the header.
-    final points = [
-      ...fetched,
-      PricePoint(price: asset.currentPrice, time: DateTime.now()),
-    ];
-    if (points.length < 2) {
-      return const Center(child: Text('Chart appears after a few ticks…'));
-    }
-    final spots = [
-      for (final p in points)
-        FlSpot(p.time.millisecondsSinceEpoch.toDouble(), p.price),
-    ];
-    final rising = points.last.price >= points.first.price;
-    final color = rising ? AppTheme.up : AppTheme.down;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: LineChart(
-        LineChartData(
-          gridData: const FlGridData(show: false),
-          titlesData: const FlTitlesData(show: false),
-          borderData: FlBorderData(show: false),
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
-              getTooltipItems: (touched) => [
-                for (final spot in touched)
-                  LineTooltipItem(
-                    Fmt.money(spot.y),
-                    const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-              ],
-            ),
-          ),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: false,
-              color: color,
-              barWidth: 2,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(
-                show: true,
-                color: color.withValues(alpha: 0.12),
-              ),
-            ),
-          ],
-        ),
-        duration: Duration.zero,
-      ),
-    );
-  }
-}

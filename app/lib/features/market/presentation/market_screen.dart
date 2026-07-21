@@ -6,10 +6,12 @@ import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/widgets/async_view.dart';
 import '../../../core/widgets/concept_chip.dart';
+import '../../../core/widgets/price_flash.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
+import 'ticker_tape.dart';
 import 'widgets.dart';
 
 /// The market: live asset list grouped by class (with unlock gates) and the
@@ -65,6 +67,8 @@ class _AssetsTab extends ConsumerWidget {
           },
           child: ListView(
             children: [
+              const TickerTape(),
+              const Divider(height: 1),
               for (final cls in classList) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -112,10 +116,9 @@ class _AssetTile extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              Fmt.money(asset.currentPrice),
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, fontFeatures: []),
+            PriceFlash(
+              price: asset.currentPrice,
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 2),
             ChangeBadge(assetId: asset.id, currentPrice: asset.currentPrice),

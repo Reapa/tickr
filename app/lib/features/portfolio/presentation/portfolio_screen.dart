@@ -70,10 +70,7 @@ class PortfolioScreen extends ConsumerWidget {
                         _SummaryStat(
                             label: 'Invested', value: Fmt.money(marketValue)),
                         const SizedBox(width: 24),
-                        _SummaryStat(
-                          label: 'Level',
-                          value: '${profile?.level ?? 1}',
-                        ),
+                        const _TodayStat(),
                       ],
                     ),
                   ],
@@ -113,10 +110,11 @@ class PortfolioScreen extends ConsumerWidget {
 }
 
 class _SummaryStat extends StatelessWidget {
-  const _SummaryStat({required this.label, required this.value});
+  const _SummaryStat({required this.label, required this.value, this.color});
 
   final String label;
   final String value;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -124,8 +122,29 @@ class _SummaryStat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.bodySmall),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(value,
+            style: TextStyle(fontWeight: FontWeight.w600, color: color)),
       ],
+    );
+  }
+}
+
+/// Net-worth change since the start of the loaded history window (24h).
+class _TodayStat extends ConsumerWidget {
+  const _TodayStat();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(netWorthHistoryProvider).value;
+    final current = ref.watch(myProfileProvider).value?.netWorth;
+    if (history == null || history.isEmpty || current == null) {
+      return const _SummaryStat(label: 'Today', value: '—');
+    }
+    final delta = current - history.first.netWorth;
+    return _SummaryStat(
+      label: 'Today',
+      value: '${delta >= 0 ? '+' : ''}${Fmt.money(delta)}',
+      color: AppTheme.changeColor(delta),
     );
   }
 }

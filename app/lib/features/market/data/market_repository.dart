@@ -71,6 +71,23 @@ class MarketRepository {
     return rows.isEmpty ? null : jsonDouble(rows.first['price']);
   }
 
+  /// Server-side OHLC candles for trader-style charts.
+  Future<List<Candle>> fetchCandles(
+    String assetId,
+    int bucketSeconds, {
+    int limit = 60,
+  }) async {
+    final rows = await _client.rpc<List<dynamic>>('get_candles', params: {
+      'p_asset_id': assetId,
+      'p_bucket_seconds': bucketSeconds,
+      'p_limit': limit,
+    });
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(Candle.fromJson)
+        .toList();
+  }
+
   Future<List<MarketEvent>> fetchEvents({int limit = 50}) async {
     final rows = await _client
         .from('market_events')
@@ -189,6 +206,15 @@ final marketEventsProvider = StreamProvider<List<MarketEvent>>(
 final assetClassesProvider = FutureProvider<List<AssetClass>>(
   (ref) => ref.watch(marketRepositoryProvider).fetchAssetClasses(),
 );
+
+/// OHLC candles for one asset at one bucket size, timer-refreshed so the
+/// forming candle stays current (same decoupling rationale as history below).
+final candlesProvider = FutureProvider.autoDispose
+    .family<List<Candle>, (String, int)>((ref, key) {
+  final timer = Timer(const Duration(seconds: 10), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+  return ref.watch(marketRepositoryProvider).fetchCandles(key.$1, key.$2);
+});
 
 /// 24h-ago reference price per asset. Fetched once and cached (unlike the
 /// live price), so change badges don't refetch on every tick.

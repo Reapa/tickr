@@ -159,6 +159,11 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    // Snapshot completed missions so we can celebrate any new ones.
+    final completedBefore = (ref.read(missionsProvider).value ?? [])
+        .where((m) => m.completed)
+        .map((m) => m.code)
+        .toSet();
     try {
       final receipt = await ref.read(tradingRepositoryProvider).placeMarketOrder(
             assetId: widget.asset.id,
@@ -166,7 +171,9 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
             quantity: _qty,
           );
       if (receipt.isFilled) {
-        // Holdings/profile update via their live streams; refresh the rest.
+        // Holdings/profile stream live, but re-pull holdings anyway so the
+        // position is correct even if a Realtime event is dropped.
+        ref.invalidate(holdingsProvider);
         ref.invalidate(missionsProvider);
         ref.invalidate(recentOrdersProvider);
         ref.invalidate(ledgerProvider);
@@ -178,6 +185,7 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
             '(${Fmt.money(receipt.notional ?? 0)})',
           ),
         ));
+        _celebrateNewMissions(messenger, completedBefore);
       } else {
         messenger.showSnackBar(SnackBar(
           content: Text('Order rejected: ${receipt.reason ?? 'unknown'}'),
@@ -187,6 +195,30 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
       messenger.showSnackBar(SnackBar(content: Text('Order failed: $error')));
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// If this trade completed a mission server-side, celebrate it.
+  Future<void> _celebrateNewMissions(
+    ScaffoldMessengerState messenger,
+    Set<String> completedBefore,
+  ) async {
+    try {
+      final after = await ref.read(missionsProvider.future);
+      for (final mission
+          in after.where((m) => m.completed && !completedBefore.contains(m.code))) {
+        messenger.showSnackBar(SnackBar(
+          backgroundColor: AppTheme.up,
+          content: Text(
+            '🎓 Mission complete: ${mission.title} '
+            '— +${Fmt.money(mission.rewardCash)}, +${mission.rewardXp} XP',
+            style: const TextStyle(
+                color: Colors.black, fontWeight: FontWeight.w600),
+          ),
+        ));
+      }
+    } catch (_) {
+      // Celebration is best-effort; the missions screen shows the truth.
     }
   }
 }

@@ -40,6 +40,31 @@ class MarketEvent {
   bool get isLive => DateTime.now().isBefore(endsAt);
 }
 
+/// One OHLC candle from the server-side aggregation (get_candles).
+class Candle {
+  const Candle({
+    required this.bucket,
+    required this.open,
+    required this.high,
+    required this.low,
+    required this.close,
+  });
+
+  factory Candle.fromJson(Map<String, dynamic> json) => Candle(
+        bucket: jsonDate(json['bucket']),
+        open: jsonDouble(json['open']),
+        high: jsonDouble(json['high']),
+        low: jsonDouble(json['low']),
+        close: jsonDouble(json['close']),
+      );
+
+  final DateTime bucket;
+  final double open;
+  final double high;
+  final double low;
+  final double close;
+}
+
 /// One point of price history.
 class PricePoint {
   const PricePoint({required this.price, required this.time});

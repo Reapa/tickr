@@ -166,6 +166,6 @@ begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     alter publication supabase_realtime add table
       public.price_ticks, public.market_events, public.profiles,
-      public.friendships, public.friend_challenges;
+      public.friendships, public.friend_challenges, public.holdings;
   end if;
 end $$;
