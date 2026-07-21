@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_game/core/json.dart';
 import 'package:trading_game/features/market/domain/asset.dart';
+import 'package:trading_game/features/market/domain/market_event.dart';
 import 'package:trading_game/features/portfolio/domain/holding.dart';
 import 'package:trading_game/features/profile/domain/profile.dart';
 
@@ -44,6 +45,41 @@ void main() {
       expect(moved.currentPrice, 200);
       expect(moved.symbol, asset.symbol);
       expect(moved.spread, asset.spread);
+      expect(moved.marketHours, asset.marketHours);
+    });
+
+    test('market_hours defaults to weekday_day when absent', () {
+      expect(asset.marketHours, 'weekday_day');
+    });
+
+    test('24/7 markets are always open', () {
+      final crypto = Asset.fromJson({
+        'id': 'c1',
+        'symbol': 'BTCN',
+        'name': 'Bitcorn',
+        'class_id': 'crypto',
+        'sector': 'crypto',
+        'current_price': 67500.0,
+        'spread': 0.001,
+        'is_active': true,
+        'market_hours': '24_7',
+      });
+      expect(crypto.isMarketOpenNow, isTrue);
+      expect(crypto.marketHoursLabel, '24/7');
+    });
+  });
+
+  group('Mover', () {
+    test('change_pct is stored as a fraction (server sends whole percent)', () {
+      final m = Mover.fromJson({
+        'asset_id': 'a1',
+        'symbol': 'NIKY',
+        'name': 'Nikey',
+        'current_price': 94.4,
+        'change_pct': 39.47,
+      });
+      expect(m.changePct, closeTo(0.3947, 1e-9));
+      expect(m.symbol, 'NIKY');
     });
   });
 

@@ -7,6 +7,7 @@ import '../../../core/format.dart';
 import '../../../core/widgets/async_view.dart';
 import '../../../core/widgets/concept_chip.dart';
 import '../../../core/sector_colors.dart';
+import '../../../core/theme.dart';
 import '../../../core/widgets/price_flash.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
@@ -14,6 +15,7 @@ import '../data/market_repository.dart';
 import '../domain/asset.dart';
 import 'sparkline.dart';
 import 'ticker_tape.dart';
+import 'top_movers.dart';
 import 'widgets.dart';
 
 /// The market: live asset list grouped by class (with unlock gates) and the
@@ -71,6 +73,13 @@ class _AssetsTab extends ConsumerWidget {
             children: [
               const TickerTape(),
               const Divider(height: 1),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Text('Top Movers · 24h',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13)),
+              ),
+              const TopMovers(),
               for (final cls in classList) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -127,7 +136,21 @@ class _AssetTile extends ConsumerWidget {
             ),
           ),
         ),
-        title: Text('${asset.symbol} · ${asset.name}'),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text('${asset.symbol} · ${asset.name}',
+                  overflow: TextOverflow.ellipsis),
+            ),
+            if (asset.marketHours == '24_7') ...[
+              const SizedBox(width: 6),
+              const _MiniBadge(text: '24/7', color: AppTheme.up),
+            ] else if (!asset.isMarketOpenNow) ...[
+              const SizedBox(width: 6),
+              const _MiniBadge(text: 'CLOSED', color: Colors.orange),
+            ],
+          ],
+        ),
         subtitle: Text(
           asset.sector.toUpperCase(),
           style: Theme.of(context)
@@ -161,6 +184,30 @@ class _AssetTile extends ConsumerWidget {
 }
 
 /// Progression gate: shows the buy-in price for a locked asset class.
+/// A tiny pill label (24/7, CLOSED, ...).
+class _MiniBadge extends StatelessWidget {
+  const _MiniBadge({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+            fontSize: 9, fontWeight: FontWeight.w700, color: color),
+      ),
+    );
+  }
+}
+
 class _LockedClassCard extends ConsumerWidget {
   const _LockedClassCard({required this.assetClass});
 

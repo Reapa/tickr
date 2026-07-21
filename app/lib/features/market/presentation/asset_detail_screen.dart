@@ -141,35 +141,96 @@ class AssetDetailScreen extends ConsumerWidget {
           ],
         ],
       ),
-      bottomSheet: Container(
-        color: AppTheme.background,
-        padding: const EdgeInsets.all(12),
-        child: SafeArea(
-          child: Row(
-            children: [
-              Expanded(
-                child: FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: AppTheme.up),
-                  onPressed: () => showOrderTicket(context, asset, 'buy'),
-                  child: const Text('Buy'),
+      bottomSheet: _TradeBar(asset: asset, hasPosition: holding != null),
+    );
+  }
+}
+
+/// The buy / sell / leverage action bar. Reflects market open/closed state and
+/// explains why an action is unavailable instead of leaving a dead button.
+class _TradeBar extends StatelessWidget {
+  const _TradeBar({required this.asset, required this.hasPosition});
+
+  final Asset asset;
+  final bool hasPosition;
+
+  @override
+  Widget build(BuildContext context) {
+    final open = asset.isMarketOpenNow;
+    final String? note = !open
+        ? 'Market closed · ${asset.reopensHint}'
+        : hasPosition
+            ? null
+            : "You don't own ${asset.symbol} yet — Buy to open a position";
+
+    return Container(
+      color: AppTheme.background,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: open ? AppTheme.up : Colors.orange,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: AppTheme.down),
-                  onPressed: holding == null
-                      ? null
-                      : () => showOrderTicket(context, asset, 'sell'),
-                  child: const Text('Sell'),
+                const SizedBox(width: 6),
+                Text(
+                  open
+                      ? 'Market open · ${asset.marketHoursLabel}'
+                      : (note ?? 'Market closed'),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: open ? AppTheme.up : Colors.orange,
+                      ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _LeverageButton(asset: asset),
-              ),
-            ],
-          ),
+                const Spacer(),
+                if (open && note != null)
+                  Flexible(
+                    child: Text(
+                      note,
+                      textAlign: TextAlign.right,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    style:
+                        FilledButton.styleFrom(backgroundColor: AppTheme.up),
+                    onPressed: open
+                        ? () => showOrderTicket(context, asset, 'buy')
+                        : null,
+                    child: const Text('Buy'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    style:
+                        FilledButton.styleFrom(backgroundColor: AppTheme.down),
+                    onPressed: open && hasPosition
+                        ? () => showOrderTicket(context, asset, 'sell')
+                        : null,
+                    child: const Text('Sell'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: _LeverageButton(asset: asset)),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -186,11 +247,14 @@ class _LeverageButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final unlocked =
         ref.watch(unlockedClassesProvider).value?.contains('margin') ?? false;
+    final open = asset.isMarketOpenNow;
     return FilledButton(
       style: FilledButton.styleFrom(backgroundColor: Colors.amber.shade700),
-      onPressed: () => unlocked
-          ? showLeverageSheet(context, asset)
-          : _offerUnlock(context, ref),
+      onPressed: !open
+          ? null
+          : () => unlocked
+              ? showLeverageSheet(context, asset)
+              : _offerUnlock(context, ref),
       child: Text(unlocked ? '⚡ Leverage' : '⚡ 🔒'),
     );
   }

@@ -20,7 +20,8 @@ class MarketRepository {
   final SupabaseClient _client;
 
   static const _assetColumns = 'id, symbol, name, class_id, sector, '
-      'description, current_price, spread, is_active, listed_at, updated_at';
+      'description, current_price, spread, is_active, market_hours, '
+      'listed_at, updated_at';
   static const _eventColumns =
       'id, scope, asset_id, sector, headline, body, sentiment, starts_at, ends_at';
 
@@ -39,6 +40,12 @@ class MarketRepository {
         .select()
         .order('sort_order', ascending: true);
     return rows.map(AssetClass.fromJson).toList();
+  }
+
+  Future<List<Mover>> fetchMovers() async {
+    final rows = await _client
+        .rpc<List<dynamic>>('get_movers', params: {'p_window_hours': 24});
+    return rows.cast<Map<String, dynamic>>().map(Mover.fromJson).toList();
   }
 
   Future<List<PricePoint>> fetchPriceHistory(
@@ -206,6 +213,13 @@ final marketEventsProvider = StreamProvider<List<MarketEvent>>(
 final assetClassesProvider = FutureProvider<List<AssetClass>>(
   (ref) => ref.watch(marketRepositoryProvider).fetchAssetClasses(),
 );
+
+/// Top movers, refreshed every 20s so the strip stays lively.
+final moversProvider = FutureProvider.autoDispose<List<Mover>>((ref) {
+  final timer = Timer(const Duration(seconds: 20), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+  return ref.watch(marketRepositoryProvider).fetchMovers();
+});
 
 /// OHLC candles for one asset at one bucket size, timer-refreshed so the
 /// forming candle stays current (same decoupling rationale as history below).

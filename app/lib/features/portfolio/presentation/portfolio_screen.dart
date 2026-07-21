@@ -17,6 +17,7 @@ import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../../trading/presentation/protection_sheet.dart';
 import '../data/portfolio_repository.dart';
+import 'allocation_donut.dart';
 import '../domain/holding.dart';
 import '../domain/portfolio_math.dart';
 
@@ -97,6 +98,7 @@ class PortfolioScreen extends ConsumerWidget {
               ),
             ),
             SizedBox(height: 180, child: _NetWorthChart()),
+            const AllocationDonut(),
             if (sectorWeights.isNotEmpty)
               _DiversificationCard(weights: sectorWeights),
             Padding(

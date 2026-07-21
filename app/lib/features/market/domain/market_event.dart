@@ -65,6 +65,32 @@ class Candle {
   final double close;
 }
 
+/// A top gainer/loser row from get_movers.
+class Mover {
+  const Mover({
+    required this.assetId,
+    required this.symbol,
+    required this.name,
+    required this.currentPrice,
+    required this.changePct,
+  });
+
+  factory Mover.fromJson(Map<String, dynamic> json) => Mover(
+        assetId: json['asset_id'] as String,
+        symbol: json['symbol'] as String,
+        name: json['name'] as String,
+        currentPrice: jsonDouble(json['current_price']),
+        // change_pct is a whole-number percent (e.g. 39.47), not a fraction.
+        changePct: jsonDouble(json['change_pct']) / 100,
+      );
+
+  final String assetId;
+  final String symbol;
+  final String name;
+  final double currentPrice;
+  final double changePct;
+}
+
 /// One point of price history.
 class PricePoint {
   const PricePoint({required this.price, required this.time});

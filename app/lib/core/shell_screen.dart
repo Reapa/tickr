@@ -6,9 +6,11 @@ import '../features/leverage/data/leverage_repository.dart';
 import '../features/market/data/market_repository.dart';
 import '../features/portfolio/data/portfolio_repository.dart';
 import '../features/portfolio/presentation/positions_bar.dart';
+import '../features/profile/data/profile_repository.dart';
 import '../features/trading/data/trigger_alerts.dart';
 import 'format.dart';
 import 'theme.dart';
+import 'widgets/celebration.dart';
 
 /// App chrome: bottom navigation on phones, navigation rail on wide screens
 /// (desktop / web / tablets). The five tabs are independent stateful stacks.
@@ -84,10 +86,31 @@ class ShellScreen extends ConsumerWidget {
     });
   }
 
+  void _listenForLevelUp(BuildContext context, WidgetRef ref) {
+    ref.listen(myProfileProvider, (previous, next) {
+      final before = previous?.value?.level;
+      final after = next.value?.level;
+      // Only celebrate a genuine increase (skip first load / sign-in).
+      if (before != null && after != null && after > before) {
+        showCelebration(
+          context,
+          title: 'Level $after!',
+          subtitle: after >= 10
+              ? '100× leverage unlocked'
+              : after >= 5
+                  ? '50× leverage unlocked'
+                  : 'Keep climbing',
+          emoji: '⭐',
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     _listenForTriggerFills(context, ref);
     _listenForLeveragedCloses(context, ref);
+    _listenForLevelUp(context, ref);
     final wide = MediaQuery.sizeOf(context).width >= 800;
     if (wide) {
       return Scaffold(
