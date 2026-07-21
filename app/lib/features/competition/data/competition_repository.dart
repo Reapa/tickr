@@ -1,0 +1,269 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../core/json.dart';
+import '../../../core/supabase_providers.dart';
+
+class LeaderboardEntry {
+  const LeaderboardEntry({
+    required this.userId,
+    required this.displayName,
+    required this.value,
+    required this.level,
+    required this.rank,
+    this.equipped = const {},
+  });
+
+  final String userId;
+  final String displayName;
+
+  /// Net worth for the global/friends boards; % return for season boards.
+  final double value;
+  final int level;
+  final int rank;
+  final Map<String, dynamic> equipped;
+}
+
+class Season {
+  const Season({
+    required this.id,
+    required this.number,
+    required this.name,
+    required this.startsAt,
+    required this.endsAt,
+  });
+
+  factory Season.fromJson(Map<String, dynamic> json) => Season(
+        id: json['id'] as String,
+        number: jsonInt(json['number']),
+        name: json['name'] as String,
+        startsAt: jsonDate(json['starts_at']),
+        endsAt: jsonDate(json['ends_at']),
+      );
+
+  final String id;
+  final int number;
+  final String name;
+  final DateTime startsAt;
+  final DateTime endsAt;
+
+  Duration get remaining {
+    final left = endsAt.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+}
+
+class Challenge {
+  const Challenge({
+    required this.id,
+    required this.challengerId,
+    required this.challengeeId,
+    required this.duration,
+    required this.status,
+    required this.endsAt,
+    required this.challengerReturn,
+    required this.challengeeReturn,
+    required this.winnerId,
+    required this.createdAt,
+  });
+
+  factory Challenge.fromJson(Map<String, dynamic> json) => Challenge(
+        id: json['id'] as String,
+        challengerId: json['challenger_id'] as String,
+        challengeeId: json['challengee_id'] as String,
+        duration: json['duration'] as String,
+        status: json['status'] as String,
+        endsAt: json['ends_at'] == null ? null : jsonDate(json['ends_at']),
+        challengerReturn: json['challenger_return'] == null
+            ? null
+            : jsonDouble(json['challenger_return']),
+        challengeeReturn: json['challengee_return'] == null
+            ? null
+            : jsonDouble(json['challengee_return']),
+        winnerId: json['winner_id'] as String?,
+        createdAt: jsonDate(json['created_at']),
+      );
+
+  final String id;
+  final String challengerId;
+  final String challengeeId;
+  final String duration;
+  final String status;
+  final DateTime? endsAt;
+  final double? challengerReturn;
+  final double? challengeeReturn;
+  final String? winnerId;
+  final DateTime createdAt;
+
+  String opponentId(String me) =>
+      challengerId == me ? challengeeId : challengerId;
+
+  bool isIncomingFor(String me) => status == 'pending' && challengeeId == me;
+}
+
+/// All three competition modes: persistent global/friends leaderboards,
+/// resetting seasons ranked by % return, and head-to-head challenges.
+class CompetitionRepository {
+  CompetitionRepository(this._client);
+
+  final SupabaseClient _client;
+
+  Future<List<LeaderboardEntry>> fetchGlobalLeaderboard({
+    int limit = 100,
+  }) async {
+    final rows = await _client
+        .from('leaderboard')
+        .select()
+        .order('rank', ascending: true)
+        .limit(limit);
+    return rows
+        .map((row) => LeaderboardEntry(
+              userId: row['user_id'] as String,
+              displayName: row['display_name'] as String,
+              value: jsonDouble(row['net_worth']),
+              level: jsonInt(row['level'], 1),
+              rank: jsonInt(row['rank']),
+              equipped:
+                  (row['equipped'] as Map<String, dynamic>?) ?? const {},
+            ))
+        .toList();
+  }
+
+  Future<List<LeaderboardEntry>> fetchFriendsLeaderboard() async {
+    final rows = await _client
+        .rpc<List<dynamic>>('get_friends_leaderboard')
+        .then((rows) => rows.cast<Map<String, dynamic>>());
+    return rows
+        .map((row) => LeaderboardEntry(
+              userId: row['user_id'] as String,
+              displayName: row['display_name'] as String,
+              value: jsonDouble(row['net_worth']),
+              level: jsonInt(row['level'], 1),
+              rank: jsonInt(row['rank']),
+            ))
+        .toList();
+  }
+
+  Future<Season?> fetchActiveSeason() async {
+    final rows = await _client
+        .from('seasons')
+        .select('id, number, name, starts_at, ends_at')
+        .eq('status', 'active')
+        .order('number', ascending: false)
+        .limit(1);
+    return rows.isEmpty ? null : Season.fromJson(rows.first);
+  }
+
+  Future<List<LeaderboardEntry>> fetchSeasonLeaderboard(
+    String seasonId, {
+    int limit = 100,
+  }) async {
+    final rows = await _client
+        .from('season_leaderboard')
+        .select()
+        .eq('season_id', seasonId)
+        .order('rank', ascending: true)
+        .limit(limit);
+    return rows
+        .map((row) => LeaderboardEntry(
+              userId: row['user_id'] as String,
+              displayName: row['display_name'] as String,
+              value: jsonDouble(row['pct_return']),
+              level: jsonInt(row['level'], 1),
+              rank: jsonInt(row['rank']),
+            ))
+        .toList();
+  }
+
+  Future<List<Challenge>> fetchChallenges() async {
+    final rows = await _client
+        .from('friend_challenges')
+        .select()
+        .order('created_at', ascending: false)
+        .limit(30);
+    return rows.map(Challenge.fromJson).toList();
+  }
+
+  /// Challenge list that refetches whenever any of the player's challenges
+  /// change (accepts, resolutions from the tick, new incoming challenges).
+  Stream<List<Challenge>> watchChallenges() {
+    final controller = StreamController<List<Challenge>>();
+    RealtimeChannel? channel;
+    Timer? debounce;
+
+    Future<void> refresh() async {
+      try {
+        controller.add(await fetchChallenges());
+      } catch (error, stack) {
+        controller.addError(error, stack);
+      }
+    }
+
+    controller.onListen = () {
+      refresh();
+      channel = _client
+          .channel('public:friend_challenges')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'friend_challenges',
+            callback: (_) {
+              debounce?.cancel();
+              debounce = Timer(const Duration(milliseconds: 300), refresh);
+            },
+          )
+          .subscribe();
+    };
+    controller.onCancel = () {
+      debounce?.cancel();
+      if (channel != null) _client.removeChannel(channel!);
+    };
+    return controller.stream;
+  }
+
+  Future<Map<String, dynamic>> createChallenge(
+    String opponentId,
+    String duration,
+  ) =>
+      _client.rpc<Map<String, dynamic>>('create_friend_challenge', params: {
+        'p_opponent': opponentId,
+        'p_duration': duration,
+      });
+
+  Future<Map<String, dynamic>> respondChallenge(
+    String challengeId,
+    bool accept,
+  ) =>
+      _client.rpc<Map<String, dynamic>>('respond_friend_challenge', params: {
+        'p_challenge_id': challengeId,
+        'p_accept': accept,
+      });
+}
+
+final competitionRepositoryProvider = Provider<CompetitionRepository>(
+  (ref) => CompetitionRepository(ref.watch(supabaseProvider)),
+);
+
+final globalLeaderboardProvider = FutureProvider<List<LeaderboardEntry>>(
+  (ref) => ref.watch(competitionRepositoryProvider).fetchGlobalLeaderboard(),
+);
+
+final friendsLeaderboardProvider = FutureProvider<List<LeaderboardEntry>>(
+  (ref) => ref.watch(competitionRepositoryProvider).fetchFriendsLeaderboard(),
+);
+
+final activeSeasonProvider = FutureProvider<Season?>(
+  (ref) => ref.watch(competitionRepositoryProvider).fetchActiveSeason(),
+);
+
+final seasonLeaderboardProvider =
+    FutureProvider.family<List<LeaderboardEntry>, String>(
+  (ref, seasonId) =>
+      ref.watch(competitionRepositoryProvider).fetchSeasonLeaderboard(seasonId),
+);
+
+final challengesProvider = StreamProvider<List<Challenge>>(
+  (ref) => ref.watch(competitionRepositoryProvider).watchChallenges(),
+);
