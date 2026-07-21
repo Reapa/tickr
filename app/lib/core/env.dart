@@ -16,9 +16,8 @@ abstract final class Env {
 
   static const String supabaseAnonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
-    defaultValue:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwi'
-        'cm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.'
-        'CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0',
+    // The Supabase CLI's shared local-dev publishable key (same on every
+    // machine running `supabase start`; not a secret).
+    defaultValue: 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH',
   );
 }

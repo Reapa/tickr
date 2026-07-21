@@ -39,8 +39,10 @@ begin
     exit when not exists (select 1 from public.profiles where friend_code = v_code);
   end loop;
 
-  insert into public.profiles (id, display_name, friend_code)
-  values (new.id, v_name, v_code);
+  -- net_worth starts at the grant so leaderboards never show $0 before the
+  -- first tick refreshes it.
+  insert into public.profiles (id, display_name, friend_code, net_worth)
+  values (new.id, v_name, v_code, v_cash);
 
   -- Starting cash flows through the ledger so it reconciles like everything else.
   insert into public.transactions (user_id, type, cash_delta, ref_type)
