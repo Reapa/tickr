@@ -1,0 +1,62 @@
+name: Deploy Tickr web to GitHub Pages
+
+# Builds the Flutter web app (pointed at the hosted Supabase project via repo
+# secrets) and publishes it to GitHub Pages on every push to main.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only the newest deploy matters.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.7
+          channel: stable
+
+      - run: flutter pub get
+
+      # base-href must match the Pages sub-path: https://<user>.github.io/<repo>/
+      # The Supabase URL + anon key are public client credentials (the anon key
+      # is designed to ship in the browser bundle), so they live here directly.
+      - name: Build web
+        run: |
+          flutter build web --release \
+            --base-href "/${{ github.event.repository.name }}/" \
+            --dart-define=SUPABASE_URL=https://fvfzoiyxymrvyfguiooh.supabase.co \
+            --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2ZnpvaXl4eW1ydnlmZ3Vpb29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2Mzk0MDIsImV4cCI6MjEwMDIxNTQwMn0.Xxc5uj76TnUmHxhAPvd0eaYjqvTUPtBrW_AhVlRKXFk
+
+      # SPA fallback so refreshing an in-app route doesn't 404 on Pages.
+      - run: cp build/web/index.html build/web/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
