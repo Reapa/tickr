@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Standard loading/error scaffolding around an [AsyncValue].
+/// Standard loading/error scaffolding around an [AsyncValue]. Pass [loading]
+/// to show a skeleton (or anything) instead of the default spinner.
 class AsyncView<T> extends StatelessWidget {
-  const AsyncView({super.key, required this.value, required this.builder});
+  const AsyncView({
+    super.key,
+    required this.value,
+    required this.builder,
+    this.loading,
+  });
 
   final AsyncValue<T> value;
   final Widget Function(T data) builder;
+  final Widget? loading;
 
   @override
   Widget build(BuildContext context) {
     return value.when(
       data: builder,
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () =>
+          loading ?? const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

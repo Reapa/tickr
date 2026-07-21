@@ -7,6 +7,7 @@ import '../../../core/format.dart';
 import '../../../core/supabase_providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/async_view.dart';
+import '../../../core/widgets/skeleton.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../social/data/social_repository.dart';
 import '../data/competition_repository.dart';
@@ -62,6 +63,7 @@ class _ActivityTab extends ConsumerWidget {
       onRefresh: () async => ref.invalidate(activityFeedProvider),
       child: AsyncView(
         value: feed,
+        loading: const SkeletonList(),
         builder: (items) {
           if (items.isEmpty) {
             return const Center(
@@ -326,6 +328,7 @@ class _GlobalTab extends ConsumerWidget {
       onRefresh: () async => ref.invalidate(globalLeaderboardProvider),
       child: AsyncView(
         value: board,
+        loading: const SkeletonList(),
         builder: (entries) =>
             _LeaderboardList(entries: entries, isPct: false),
       ),

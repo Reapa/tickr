@@ -7,6 +7,7 @@ import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/widgets/async_view.dart';
 import '../../../core/widgets/concept_chip.dart';
+import '../../../core/widgets/skeleton.dart';
 import '../../../core/sector_colors.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/price_flash.dart';
@@ -203,6 +204,7 @@ class _MarketList extends ConsumerWidget {
 
     return AsyncView(
       value: assets,
+      loading: const SkeletonList(),
       builder: (assetList) {
         final classList = classes.value
                 ?.where((c) => classIds.contains(c.id))
