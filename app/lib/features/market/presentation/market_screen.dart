@@ -26,7 +26,7 @@ class MarketScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 4,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Market'),
@@ -37,16 +37,30 @@ class MarketScreen extends ConsumerWidget {
             ),
           ],
           bottom: const TabBar(isScrollable: true, tabs: [
-            Tab(text: 'Assets'),
+            Tab(text: '📈 Stocks'),
+            Tab(text: '🏢 Real Estate'),
+            Tab(text: '🏭 Companies'),
             Tab(text: '₿ Crypto'),
             Tab(text: '💱 Forex'),
-            Tab(text: 'News'),
+            Tab(text: '📰 News'),
           ]),
         ),
         body: const TabBarView(children: [
           _MarketList(
-            classIds: {'stocks', 'real_estate', 'companies', 'margin'},
+            classIds: {'stocks', 'margin'},
             showMovers: true,
+          ),
+          _MarketList(
+            classIds: {'real_estate'},
+            banner: '🏢 Property funds — steadier, income-style assets. '
+                'Direct property ownership with weekly rental income is on '
+                'the roadmap.',
+          ),
+          _MarketList(
+            classIds: {'companies'},
+            banner: '🏭 Own a stake in private companies. Full company '
+                'ownership — with profits tied to market performance — is '
+                'coming.',
           ),
           _MarketList(
             classIds: {'crypto'},

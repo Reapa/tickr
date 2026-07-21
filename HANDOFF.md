@@ -45,6 +45,39 @@ A cross-platform competitive **trading simulation game** (Flutter + Supabase). F
 4. Owner feedback patterns to honor: **intuitive over dense** (TP/SL got %-or-$ modes with quick chips; the leverage ticket leads with the liquidation warning and "max loss" for the same reason), visible positions everywhere (positions bar), playful tone (parody names, emoji toasts).
 5. **Market-feel tuning (2026-07-21 audit)**: liquidity cut 5× so player trades visibly move prices; event spawn 3%/tick (~2.8 min between news); avg tick move ~0.04%; time compression 1 game-year = 7 days. All knobs in `game_config` + per-asset columns — retune freely as player count grows (liquidity should scale back UP with real concurrency).
 
+## Owner's future vision — "ownership economy" (NOT built; design notes)
+
+Owner wants real estate and companies to become **owned, income-producing
+assets**, not just tradeable funds. Explicitly flagged as future work. Captured
+here so it isn't lost or half-built:
+
+- **Real estate → buy actual properties for weekly rental income.** A property
+  is a distinct ownable unit; **only one player can own each** (exclusive
+  ownership, unlike shares). While owned it pays a recurring "rent" cash flow.
+  - Design sketch: a `properties` table (unique units, `owner_id` nullable,
+    `weekly_rent`, `price`); buy/sell RPCs that transfer ownership atomically
+    (guard against double-buy with `owner_id IS NULL` + row lock); a scheduled
+    payout (pg_cron weekly, or accrue per-tick) that inserts `rent_income`
+    ledger rows. **All income through the ledger** (new `transactions.type`
+    member) so it reconciles — guardrail 2. Rent could scale with a market/
+    sector index so it's not risk-free.
+- **Companies → own a whole listed company; profit tracks market performance.**
+  Same exclusivity (one owner). Owner receives a share of "earnings" derived
+  from the company's simulated price/market performance, again via ledger
+  income rows. Buying one out is expensive and a genuine end-game sink.
+- **Player-registered companies (far future).** Players float their own company
+  on the market for a steep fee, with a setup + verification step before it
+  lists and becomes tradeable by others. Needs moderation/verification flow;
+  economy-sensitive (a new asset injecting value) — design carefully against
+  the ledger invariants and think about how its price/fair-value is seeded.
+
+Common threads for whoever builds this: exclusive ownership needs
+double-purchase protection (row locks + conditional update); every income
+stream is append-only ledger rows with a new closed-set `type`; recurring
+payouts fit the existing tick/pg_cron pattern (`resolve_seasons` /
+`resolve_challenges` are the model); net-worth calc must include owned-asset
+value + accrued income. UI already has per-market tabs to slot these into.
+
 ## Known rough edges
 
 - Season/challenge/leaderboard flows are SQL-tested but the **two-player client flow has never been human-tested** (needs two browser sessions swapping friend codes).
