@@ -10,6 +10,7 @@ import '../../../core/sector_colors.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
 import '../../../core/widgets/price_flash.dart';
+import '../../../core/widgets/tutorial_tip.dart';
 import '../../leverage/data/leverage_repository.dart';
 import '../../leverage/presentation/leverage_position_card.dart';
 import '../../market/data/market_repository.dart';
@@ -60,6 +61,12 @@ class PortfolioScreen extends ConsumerWidget {
         },
         child: ListView(
           children: [
+            const TutorialTip(
+              id: 'portfolio',
+              text: 'Your net worth is cash plus everything you hold, marked to '
+                  'live prices. The chart tracks it over time; positions and '
+                  'queued orders sit below.',
+            ),
             Card(
               child: Container(
                 decoration: BoxDecoration(

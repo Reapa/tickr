@@ -6,6 +6,7 @@ import '../../../core/brand.dart';
 import '../../../core/cosmetics.dart';
 import '../../../core/currency.dart';
 import '../../../core/currency_prefs.dart';
+import '../../../core/tutorial.dart';
 import '../../../core/widgets/trader_avatar.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
@@ -150,6 +151,16 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 Card(
                   child: ListTile(
+                    leading: const Icon(Icons.school_outlined),
+                    title: const Text('Guidance & tutorial'),
+                    subtitle: Text(
+                        'Coaching: ${ref.watch(tutorialProvider).skillLevel?.label ?? 'not set'}'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _tutorialSettings(context, ref),
+                  ),
+                ),
+                Card(
+                  child: ListTile(
                     leading: const Icon(Icons.new_releases_outlined),
                     title: const Text("What's new"),
                     subtitle: const Text('Recent updates and improvements'),
@@ -160,6 +171,58 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
               ],
             ),
+    );
+  }
+
+  Future<void> _tutorialSettings(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final current = ref.watch(tutorialProvider).skillLevel;
+          return SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: Text('Coaching level',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text('How much the app explains as you trade.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ),
+                for (final level in SkillLevel.values)
+                  ListTile(
+                    title: Text(level.label),
+                    subtitle: Text(level.blurb),
+                    trailing: level == current
+                        ? const Icon(Icons.check, color: AppTheme.up)
+                        : null,
+                    onTap: () => ref
+                        .read(tutorialProvider.notifier)
+                        .setSkillLevel(level),
+                  ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.replay),
+                  title: const Text('Replay the tutorial'),
+                  subtitle:
+                      const Text('Re-run the welcome and show every tip again.'),
+                  onTap: () {
+                    ref.read(tutorialProvider.notifier).reset();
+                    Navigator.pop(context);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 

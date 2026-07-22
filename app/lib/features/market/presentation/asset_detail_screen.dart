@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
+import '../../../core/tutorial.dart';
 import '../../../core/widgets/concept_chip.dart';
 import '../../../core/widgets/price_flash.dart';
+import '../../../core/widgets/tutorial_tip.dart';
 import '../../leverage/data/leverage_repository.dart';
 import '../../leverage/presentation/leverage_position_card.dart';
 import '../../leverage/presentation/leverage_sheet.dart';
@@ -58,6 +60,13 @@ class AssetDetailScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 96),
         children: [
+          const TutorialTip(
+            id: 'asset_detail',
+            text: 'Tap Buy to open a position. Once you hold it, use '
+                '“Protect” to set a take-profit or stop-loss. Limit/Stop buys '
+                'queue an order to fill at a target price.',
+            showUpTo: SkillLevel.intermediate,
+          ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(

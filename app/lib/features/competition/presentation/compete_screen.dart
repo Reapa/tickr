@@ -5,9 +5,11 @@ import '../../../core/brand.dart';
 import '../../../core/format.dart';
 import '../../../core/supabase_providers.dart';
 import '../../../core/theme.dart';
+import '../../../core/tutorial.dart';
 import '../../../core/widgets/async_view.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../../core/widgets/trader_avatar.dart';
+import '../../../core/widgets/tutorial_tip.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../social/data/social_repository.dart';
 import '../data/competition_repository.dart';
@@ -332,14 +334,26 @@ class _GlobalTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final board = ref.watch(globalLeaderboardProvider);
-    return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(globalLeaderboardProvider),
-      child: AsyncView(
-        value: board,
-        loading: const SkeletonList(),
-        builder: (entries) =>
-            _LeaderboardList(entries: entries, isPct: false),
-      ),
+    return Column(
+      children: [
+        const TutorialTip(
+          id: 'compete',
+          text: 'Climb by growing your net worth. Race friends head-to-head in '
+              'Challenges, and top the Season for exclusive rewards.',
+          showUpTo: SkillLevel.intermediate,
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async => ref.invalidate(globalLeaderboardProvider),
+            child: AsyncView(
+              value: board,
+              loading: const SkeletonList(),
+              builder: (entries) =>
+                  _LeaderboardList(entries: entries, isPct: false),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

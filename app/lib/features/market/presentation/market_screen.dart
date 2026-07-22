@@ -12,6 +12,7 @@ import '../../../core/widgets/skeleton.dart';
 import '../../../core/sector_colors.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/price_flash.dart';
+import '../../../core/widgets/tutorial_tip.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
@@ -256,6 +257,12 @@ class _MarketList extends ConsumerWidget {
           },
           child: ListView(
             children: [
+              const TutorialTip(
+                id: 'market_list',
+                text: 'This is the market. Tap any asset to see its chart and '
+                    'trade it. Locked classes (crypto, forex, more) unlock as '
+                    'you grow your net worth.',
+              ),
               if (showMovers) ...[
                 const TickerTape(),
                 const Divider(height: 1),

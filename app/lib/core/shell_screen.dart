@@ -8,10 +8,12 @@ import '../features/portfolio/data/portfolio_repository.dart';
 import '../features/portfolio/presentation/positions_bar.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/profile/presentation/daily_reward_dialog.dart';
+import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/trading/data/trigger_alerts.dart';
 import 'app_update.dart';
 import 'format.dart';
 import 'theme.dart';
+import 'tutorial.dart';
 import 'widgets/celebration.dart';
 
 /// App chrome: bottom navigation on phones, navigation rail on wide screens
@@ -124,6 +126,10 @@ class ShellScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // First-run: pick a skill level before the app opens up.
+    if (!ref.watch(tutorialProvider).onboarded) {
+      return const OnboardingScreen();
+    }
     _listenForTriggerFills(context, ref);
     _listenForLeveragedCloses(context, ref);
     _listenForLevelUp(context, ref);

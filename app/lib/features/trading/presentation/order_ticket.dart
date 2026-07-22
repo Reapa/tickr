@@ -5,6 +5,7 @@ import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
+import '../../../core/widgets/tutorial_tip.dart';
 import '../../market/domain/asset.dart';
 import '../../missions/data/missions_repository.dart';
 import '../../portfolio/data/portfolio_repository.dart';
@@ -189,6 +190,11 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
                 ? 'Cash available: ${Fmt.money(cash)}'
                 : 'You hold: ${Fmt.quantity(held)}',
             style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const TutorialTip(
+            id: 'order_ticket',
+            text: 'Enter a number of units, or switch to “Amount” to spend a '
+                'set cash value. A market order fills at the live price now.',
           ),
           if (_isBuy) ...[
             const SizedBox(height: 12),
