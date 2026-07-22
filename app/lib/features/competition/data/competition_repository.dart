@@ -155,6 +155,8 @@ class CompetitionRepository {
               value: jsonDouble(row['net_worth']),
               level: jsonInt(row['level'], 1),
               rank: jsonInt(row['rank']),
+              equipped:
+                  (row['equipped'] as Map<String, dynamic>?) ?? const {},
             ))
         .toList();
   }
@@ -186,6 +188,8 @@ class CompetitionRepository {
               value: jsonDouble(row['pct_return']),
               level: jsonInt(row['level'], 1),
               rank: jsonInt(row['rank']),
+              equipped:
+                  (row['equipped'] as Map<String, dynamic>?) ?? const {},
             ))
         .toList();
   }

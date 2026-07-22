@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/cosmetics.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/async_view.dart';
+import '../../../core/widgets/trader_avatar.dart';
 import '../../profile/data/profile_repository.dart';
 import '../data/store_repository.dart';
 
@@ -169,17 +171,7 @@ class _CosmeticTile extends ConsumerWidget {
       shadowColor: rarity,
       elevation: rare ? 6 : 0,
       child: ListTile(
-        leading: Container(
-          width: 42,
-          height: 42,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: rarity.withValues(alpha: 0.16),
-            border: Border.all(color: rarity.withValues(alpha: 0.5)),
-          ),
-          child: Icon(Icons.auto_awesome, size: 20, color: rarity),
-        ),
+        leading: _preview(rarity),
         title: Row(
           children: [
             Flexible(child: Text(cosmetic.name, overflow: TextOverflow.ellipsis)),
@@ -201,6 +193,35 @@ class _CosmeticTile extends ConsumerWidget {
         trailing: _action(context, ref),
       ),
     );
+  }
+
+  /// A live preview of the cosmetic itself, so the store shows what you're
+  /// buying instead of a generic icon.
+  Widget _preview(Color rarity) {
+    switch (cosmetic.slot) {
+      case 'avatar_frame':
+        return TraderAvatar(
+            name: '★', equipped: {'avatar_frame': cosmetic.code}, radius: 18);
+      case 'profile_badge':
+        return CircleAvatar(
+          radius: 21,
+          backgroundColor: rarity.withValues(alpha: 0.16),
+          child: Text(badgeEmoji(cosmetic.code) ?? '🎖',
+              style: const TextStyle(fontSize: 20)),
+        );
+      case 'chart_theme':
+        final t = chartTheme(cosmetic.code);
+        return _Swatch(colors: [t.up, t.down, t.line]);
+      case 'ticker_skin':
+        final s = tickerSkin(cosmetic.code);
+        return _Swatch(colors: [
+          s.background ?? Colors.black,
+          s.accent ?? rarity,
+          s.text ?? Colors.white,
+        ]);
+      default:
+        return Icon(Icons.auto_awesome, color: rarity);
+    }
   }
 
   Widget _action(BuildContext context, WidgetRef ref) {
@@ -259,5 +280,28 @@ class _CosmeticTile extends ConsumerWidget {
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('$error')));
     }
+  }
+}
+
+/// A little colour-band chip previewing a chart theme / ticker skin.
+class _Swatch extends StatelessWidget {
+  const _Swatch({required this.colors});
+
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 42,
+      height: 42,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        children: [for (final c in colors) Expanded(child: Container(color: c))],
+      ),
+    );
   }
 }

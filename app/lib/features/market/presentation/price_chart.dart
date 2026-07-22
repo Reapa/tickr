@@ -2,9 +2,11 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/cosmetics.dart';
 import '../../../core/format.dart';
 import '../../../core/prefs.dart';
 import '../../../core/theme.dart';
+import '../../profile/data/profile_repository.dart';
 import '../../portfolio/data/portfolio_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
@@ -234,6 +236,9 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
           child: Text('Not enough history for this interval yet…'));
     }
 
+    // Equipped chart-theme cosmetic recolours the candles.
+    final chart = equippedChartTheme(ref.watch(myProfileProvider).value?.equipped);
+
     final total = candles.length;
     // Guard: with fewer than 8 candles the lower bound would exceed total.
     final minVisible = total < 8 ? total : 8;
@@ -342,7 +347,7 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                       // as whole numbers (.toInt()) — useless for slow movers.
                       touchTooltipData: CandlestickTouchTooltipData(
                         getTooltipItems: (painter, spot, index) {
-                          final color = spot.isUp ? AppTheme.up : AppTheme.down;
+                          final color = spot.isUp ? chart.up : chart.down;
                           final label = TextStyle(
                               color: Colors.grey.shade400, fontSize: 11);
                           final val = TextStyle(
@@ -441,11 +446,11 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                     candlestickPainter: DefaultCandlestickPainter(
                       candlestickStyleProvider: (spot, index) =>
                           CandlestickStyle(
-                        lineColor: spot.isUp ? AppTheme.up : AppTheme.down,
+                        lineColor: spot.isUp ? chart.up : chart.down,
                         lineWidth: 1.2,
                         bodyStrokeColor: Colors.transparent,
                         bodyStrokeWidth: 0,
-                        bodyFillColor: spot.isUp ? AppTheme.up : AppTheme.down,
+                        bodyFillColor: spot.isUp ? chart.up : chart.down,
                         bodyWidth: bodyWidth,
                         bodyRadius: 1,
                       ),
@@ -616,8 +621,9 @@ class _LineMode extends ConsumerWidget {
     if (points.length < 2) {
       return const Center(child: Text('Chart appears after a few ticks…'));
     }
+    final chart = equippedChartTheme(ref.watch(myProfileProvider).value?.equipped);
     final rising = points.last.price >= points.first.price;
-    final color = rising ? AppTheme.up : AppTheme.down;
+    final color = rising ? chart.up : chart.down;
     final (minY, maxY) = _yRange(points.map((p) => p.price), markers);
 
     return Padding(

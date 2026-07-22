@@ -7,6 +7,7 @@ import '../../../core/supabase_providers.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/async_view.dart';
 import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/trader_avatar.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../social/data/social_repository.dart';
 import '../data/competition_repository.dart';
@@ -176,16 +177,34 @@ class _LeaderRow extends StatelessWidget {
       dense: true,
       selected: isMe,
       leading: SizedBox(
-        width: 34,
-        child: Text('#${entry.rank}',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: isMe ? AppTheme.brand : Colors.grey.shade500,
-                fontFeatures: const [FontFeature.tabularFigures()])),
+        width: 60,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 26,
+              child: Text('#${entry.rank}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: isMe ? AppTheme.brand : Colors.grey.shade500,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ),
+            const SizedBox(width: 2),
+            TraderAvatar(
+              name: entry.displayName,
+              equipped: entry.equipped,
+              radius: 13,
+              fallbackColor: isMe ? AppTheme.brand : Colors.grey.shade500,
+            ),
+          ],
+        ),
       ),
-      title: Text('${entry.displayName}${isMe ? ' (you)' : ''}',
-          style: TextStyle(fontWeight: isMe ? FontWeight.w800 : FontWeight.w500)),
+      title: NameWithBadge(
+        name: '${entry.displayName}${isMe ? ' (you)' : ''}',
+        equipped: entry.equipped,
+        style: TextStyle(fontWeight: isMe ? FontWeight.w800 : FontWeight.w500),
+      ),
       subtitle: Text('Level ${entry.level}'),
       trailing: Text(
         isPct ? Fmt.pct(entry.value) : Fmt.moneyCompact(entry.value),
@@ -264,21 +283,18 @@ class _PodiumSpot extends StatelessWidget {
         children: [
           Text(_medals[rank]!, style: const TextStyle(fontSize: 24)),
           const SizedBox(height: 4),
-          CircleAvatar(
+          TraderAvatar(
+            name: e.displayName,
+            equipped: e.equipped,
             radius: rank == 1 ? 26 : 22,
-            backgroundColor: color.withValues(alpha: 0.2),
-            child: Text(e.displayName.characters.first.toUpperCase(),
-                style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: rank == 1 ? 20 : 16)),
+            fallbackColor: color,
           ),
           const SizedBox(height: 6),
-          Text(isMe ? 'You' : e.displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, fontSize: 12.5)),
+          NameWithBadge(
+            name: isMe ? 'You' : e.displayName,
+            equipped: e.equipped,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+          ),
           Text(isPct ? Fmt.pct(e.value) : Fmt.moneyCompact(e.value),
               style: TextStyle(
                   fontSize: 12,
@@ -615,7 +631,8 @@ class _ChallengeTile extends ConsumerWidget {
     final opponent = nameById[challenge.opponentId(myId)] ?? 'Unknown trader';
 
     // My live return (active challenges): current net worth vs my snapshot.
-    final myNw = ref.watch(myProfileProvider).value?.netWorth;
+    final myProfile = ref.watch(myProfileProvider).value;
+    final myNw = myProfile?.netWorth;
     final myStart = challenge.myStartNw(myId);
     final myFinal =
         challenge.challengerId == myId ? challenge.challengerReturn : challenge.challengeeReturn;
@@ -628,11 +645,11 @@ class _ChallengeTile extends ConsumerWidget {
     // Opponent's live return: their current net worth (from the friends board)
     // vs their challenge-start snapshot. Shown live so the race is honest.
     final oppId = challenge.opponentId(myId);
-    final oppNw = (ref.watch(friendsLeaderboardProvider).value ??
+    final oppEntry = (ref.watch(friendsLeaderboardProvider).value ??
             const <LeaderboardEntry>[])
         .where((e) => e.userId == oppId)
-        .firstOrNull
-        ?.value;
+        .firstOrNull;
+    final oppNw = oppEntry?.value;
     final oppStart = challenge.challengerId == myId
         ? challenge.challengeeStartNw
         : challenge.challengerStartNw;
@@ -678,6 +695,7 @@ class _ChallengeTile extends ConsumerWidget {
                   ret: completed ? myFinal : myLive,
                   highlight: completed && iWon,
                   pending: !completed && challenge.status != 'active',
+                  equipped: myProfile?.equipped,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -695,6 +713,7 @@ class _ChallengeTile extends ConsumerWidget {
                       : challenge.status == 'active'
                           ? theirLive == null
                           : true,
+                  equipped: oppEntry?.equipped,
                 ),
               ],
             ),
@@ -764,12 +783,14 @@ class _Fighter extends StatelessWidget {
     required this.ret,
     required this.highlight,
     required this.pending,
+    this.equipped,
   });
 
   final String name;
   final double? ret;
   final bool highlight;
   final bool pending;
+  final Map<String, dynamic>? equipped;
 
   @override
   Widget build(BuildContext context) {
@@ -777,20 +798,19 @@ class _Fighter extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          CircleAvatar(
+          TraderAvatar(
+            name: name,
+            equipped: equipped,
             radius: 20,
-            backgroundColor: highlight
-                ? AppTheme.gold.withValues(alpha: 0.25)
-                : AppTheme.surfaceHigh,
+            fallbackColor: highlight ? AppTheme.gold : AppTheme.surfaceHigh,
             child: highlight
                 ? const Text('👑', style: TextStyle(fontSize: 18))
-                : Text(name.characters.first.toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                : null,
           ),
           const SizedBox(height: 6),
-          Text(name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          NameWithBadge(
+              name: name,
+              equipped: equipped,
               style: const TextStyle(
                   fontWeight: FontWeight.w700, fontSize: 12.5)),
           const SizedBox(height: 2),

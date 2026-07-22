@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/brand.dart';
+import '../../../core/cosmetics.dart';
 import '../../../core/currency.dart';
 import '../../../core/currency_prefs.dart';
+import '../../../core/widgets/trader_avatar.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
 import '../../market/data/market_repository.dart';
@@ -65,6 +67,13 @@ class ProfileScreen extends ConsumerWidget {
                                                     fontWeight: FontWeight.w800),
                                             overflow: TextOverflow.ellipsis),
                                       ),
+                                      if (equippedBadge(profile.equipped) !=
+                                          null) ...[
+                                        const SizedBox(width: 5),
+                                        Text(equippedBadge(profile.equipped)!,
+                                            style:
+                                                const TextStyle(fontSize: 18)),
+                                      ],
                                       IconButton(
                                         icon: const Icon(Icons.edit, size: 15),
                                         visualDensity: VisualDensity.compact,
@@ -229,7 +238,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-/// Avatar wrapped in a level-progress ring with a level badge.
+/// The player's avatar with their equipped frame and a level badge.
 class _LevelRingAvatar extends StatelessWidget {
   const _LevelRingAvatar({required this.profile});
 
@@ -237,56 +246,11 @@ class _LevelRingAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Extra height so the level badge sits fully inside the box (no clipping).
-    return SizedBox(
-      width: 64,
-      height: 74,
-      child: Stack(
-        alignment: Alignment.topCenter,
-        clipBehavior: Clip.none,
-        children: [
-          SizedBox(
-            width: 64,
-            height: 64,
-            child: CircularProgressIndicator(
-              value: profile.levelProgress,
-              strokeWidth: 4,
-              backgroundColor: AppTheme.hairline,
-              valueColor: const AlwaysStoppedAnimation(AppTheme.brand),
-            ),
-          ),
-          Positioned(
-            top: 8,
-            child: CircleAvatar(
-              radius: 24,
-              backgroundColor: AppTheme.brand.withValues(alpha: 0.18),
-              child: Text(
-                profile.displayName.characters.first.toUpperCase(),
-                style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.brand),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppTheme.brand,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.surface, width: 2),
-              ),
-              child: Text('${profile.level}',
-                  style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 11)),
-            ),
-          ),
-        ],
-      ),
+    return TraderAvatar(
+      name: profile.displayName,
+      equipped: profile.equipped,
+      radius: 28,
+      level: profile.level,
     );
   }
 }

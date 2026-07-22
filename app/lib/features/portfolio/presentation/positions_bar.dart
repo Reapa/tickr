@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/cosmetics.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
 import '../../leverage/data/leverage_repository.dart';
@@ -44,12 +45,16 @@ class PositionsBar extends ConsumerWidget {
     final double? todayChange =
         dayBase == null ? null : profile.netWorth - dayBase.netWorth;
 
+    final skin = equippedTickerSkin(profile.equipped);
+
     return Container(
       height: 46,
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: skin.background ?? AppTheme.surface,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          top: BorderSide(
+              color: skin.accent?.withValues(alpha: 0.6) ??
+                  Colors.white.withValues(alpha: 0.08)),
         ),
       ),
       child: Row(
@@ -60,9 +65,15 @@ class PositionsBar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
-                  _Metric(label: 'NET WORTH', value: Fmt.moneyCompact(profile.netWorth)),
+                  _Metric(
+                      label: 'NET WORTH',
+                      value: Fmt.moneyCompact(profile.netWorth),
+                      color: skin.text),
                   const _BarDivider(),
-                  _Metric(label: 'CASH', value: Fmt.moneyCompact(profile.cashBalance)),
+                  _Metric(
+                      label: 'CASH',
+                      value: Fmt.moneyCompact(profile.cashBalance),
+                      color: skin.text),
                   const _BarDivider(),
                   _Metric(
                     label: 'TODAY',
@@ -70,7 +81,7 @@ class PositionsBar extends ConsumerWidget {
                         ? '—'
                         : '${todayChange >= 0 ? '+' : ''}${Fmt.moneyCompact(todayChange)}',
                     color: todayChange == null
-                        ? null
+                        ? skin.text
                         : AppTheme.changeColor(todayChange),
                   ),
                   const SizedBox(width: 2),
