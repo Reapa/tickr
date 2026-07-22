@@ -14,6 +14,7 @@ class OrderReceipt {
     this.quantity,
     this.notional,
     this.realizedPnl,
+    this.xpMultiplier,
   });
 
   factory OrderReceipt.fromJson(Map<String, dynamic> json) => OrderReceipt(
@@ -27,6 +28,9 @@ class OrderReceipt {
         realizedPnl: json['realized_pnl'] == null
             ? null
             : jsonDouble(json['realized_pnl']),
+        xpMultiplier: json['xp_multiplier'] == null
+            ? null
+            : jsonInt(json['xp_multiplier']),
       );
 
   final String status; // filled | rejected | unlocked
@@ -37,6 +41,11 @@ class OrderReceipt {
 
   /// Cash profit (+) / loss (−) locked in when this order closed a position.
   final double? realizedPnl;
+
+  /// XP multiplier rolled on this close: 1 = flat rate, 2–10 = a "Sharp Trade".
+  final int? xpMultiplier;
+
+  bool get isSharpTrade => (xpMultiplier ?? 1) > 1;
 
   bool get isFilled => status == 'filled';
 }

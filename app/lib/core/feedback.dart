@@ -49,8 +49,25 @@ abstract final class Juice {
     double? ret,
     required String symbol,
     String? headline,
+    int? sharpMultiplier,
   }) {
     if (!ref.read(feedbackEnabledProvider)) return false;
+
+    // A Sharp Trade bonus always celebrates, whatever the size — the variable
+    // reward is the moment. Multiplier drives the intensity of the copy.
+    final sharp = (sharpMultiplier ?? 1) > 1;
+    if (sharp && pnl > 0) {
+      HapticFeedback.heavyImpact();
+      showCelebration(
+        context,
+        title: 'Sharp Trade ×$sharpMultiplier!',
+        subtitle: '+${Fmt.money(pnl)} on $symbol · $sharpMultiplier× XP'
+            '${ret != null ? ' · ${Fmt.pct(ret)}' : ''}',
+        emoji: sharpMultiplier! >= 6 ? '🚀' : '⚡',
+      );
+      return true;
+    }
+
     if (pnl <= 0) {
       HapticFeedback.lightImpact();
       return false;

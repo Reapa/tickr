@@ -405,7 +405,9 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
           Juice.fill(ref);
         } else if (mounted) {
           Juice.close(context, ref,
-              pnl: receipt.realizedPnl ?? 0, symbol: widget.asset.symbol);
+              pnl: receipt.realizedPnl ?? 0,
+              symbol: widget.asset.symbol,
+              sharpMultiplier: receipt.xpMultiplier);
         }
         navigator.pop();
         messenger.showSnackBar(SnackBar(

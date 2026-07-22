@@ -13,6 +13,7 @@ class TriggerFill {
     required this.orderType,
     required this.quantity,
     this.realizedPnl,
+    this.xpMultiplier,
   });
 
   final String assetId;
@@ -21,6 +22,9 @@ class TriggerFill {
 
   /// Cash profit (+) / loss (−) the fill locked in (from the orders row).
   final double? realizedPnl;
+
+  /// XP multiplier on the fill: 1 = flat, 2–10 = a "Sharp Trade" bonus.
+  final int? xpMultiplier;
 
   bool get isTakeProfit => orderType == 'limit';
 }
@@ -59,6 +63,9 @@ final triggerFillsProvider = StreamProvider<TriggerFill>((ref) {
               realizedPnl: row['realized_pnl'] == null
                   ? null
                   : jsonDouble(row['realized_pnl']),
+              xpMultiplier: row['xp_multiplier'] == null
+                  ? null
+                  : jsonInt(row['xp_multiplier']),
             ));
           }
         },

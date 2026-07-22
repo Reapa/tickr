@@ -505,7 +505,8 @@ class _HoldingTile extends ConsumerWidget {
       ref.invalidate(missionsProvider);
       final pnl = receipt.realizedPnl;
       if (receipt.isFilled && pnl != null && context.mounted) {
-        Juice.close(context, ref, pnl: pnl, symbol: a.symbol);
+        Juice.close(context, ref,
+            pnl: pnl, symbol: a.symbol, sharpMultiplier: receipt.xpMultiplier);
       }
       messenger.showSnackBar(SnackBar(
         content: Text(receipt.isFilled
@@ -617,10 +618,24 @@ class _RealizedPnl extends StatelessWidget {
               color: color,
               fontFeatures: const [FontFeature.tabularFigures()]),
         ),
-        Text(
-          ret == null ? 'realized' : '${pnl >= 0 ? '+' : ''}${Fmt.pct(ret)}',
-          style: TextStyle(fontSize: 10.5, color: color.withValues(alpha: 0.8)),
-        ),
+        if (order.isSharpTrade)
+          Container(
+            margin: const EdgeInsets.only(top: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: AppTheme.gold.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text('⚡ ${order.xpMultiplier}× XP',
+                style: const TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w800, color: AppTheme.gold)),
+          )
+        else
+          Text(
+            ret == null ? 'realized' : '${pnl >= 0 ? '+' : ''}${Fmt.pct(ret)}',
+            style:
+                TextStyle(fontSize: 10.5, color: color.withValues(alpha: 0.8)),
+          ),
       ],
     );
   }

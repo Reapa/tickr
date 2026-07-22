@@ -55,7 +55,8 @@ class ShellScreen extends ConsumerWidget {
       Juice.close(context, ref,
           pnl: pnl ?? 0,
           symbol: symbol,
-          headline: fill.isTakeProfit ? 'Take profit!' : null);
+          headline: fill.isTakeProfit ? 'Take profit!' : null,
+          sharpMultiplier: fill.xpMultiplier);
     });
   }
 

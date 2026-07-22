@@ -30,6 +30,7 @@ class OrderRow {
     required this.createdAt,
     this.realizedPnl,
     this.closeAvgCost,
+    this.xpMultiplier,
   });
 
   factory OrderRow.fromJson(Map<String, dynamic> json) => OrderRow(
@@ -45,6 +46,9 @@ class OrderRow {
         closeAvgCost: json['close_avg_cost'] == null
             ? null
             : jsonDouble(json['close_avg_cost']),
+        xpMultiplier: json['xp_multiplier'] == null
+            ? null
+            : jsonInt(json['xp_multiplier']),
       );
 
   final String assetId;
@@ -60,6 +64,11 @@ class OrderRow {
 
   /// The position's average cost per unit at close — lets us show a return %.
   final double? closeAvgCost;
+
+  /// XP multiplier on this close: 1 = flat, 2–10 = a "Sharp Trade" bonus roll.
+  final int? xpMultiplier;
+
+  bool get isSharpTrade => (xpMultiplier ?? 1) > 1;
 
   bool get isRealizedClose =>
       side == 'sell' && status == 'filled' && realizedPnl != null;
@@ -200,7 +209,7 @@ class PortfolioRepository {
     final rows = await _client
         .from('orders')
         .select('asset_id, side, quantity, status, reject_reason, created_at, '
-            'realized_pnl, close_avg_cost')
+            'realized_pnl, close_avg_cost, xp_multiplier')
         .order('created_at', ascending: false)
         .limit(limit);
     return rows.map(OrderRow.fromJson).toList();
