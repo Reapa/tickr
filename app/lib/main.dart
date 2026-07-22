@@ -36,22 +36,15 @@ class TradingGameApp extends ConsumerStatefulWidget {
 
 class _TradingGameAppState extends ConsumerState<TradingGameApp> {
   late final AppLifecycleListener _lifecycle;
-  late final ProviderSubscription<double> _rate;
 
   @override
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: _resyncLiveData);
-    // Keep the live forex-derived rate flowing into Fmt.rate without rebuilding
-    // the whole app each tick (money widgets rebuild on their own streams and
-    // read the updated static). fireImmediately so the first frame has a rate.
-    _rate = ref.listenManual(displayRateProvider, (_, _) {},
-        fireImmediately: true);
   }
 
   @override
   void dispose() {
-    _rate.close();
     _lifecycle.dispose();
     super.dispose();
   }

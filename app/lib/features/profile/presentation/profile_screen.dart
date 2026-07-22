@@ -242,8 +242,9 @@ class ProfileScreen extends ConsumerWidget {
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Text(
-                'Changes how values are shown everywhere. Your actual balances '
-                'and the market are unchanged — this is just the display unit.',
+                'Just the display unit — your balances and the market are '
+                'unchanged. The rate is taken from the in-game forex market when '
+                'you pick, then held steady so values stay consistent.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),
@@ -256,7 +257,10 @@ class ProfileScreen extends ConsumerWidget {
                       style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
                 title: Text(currency.name),
-                subtitle: Text(currency.code),
+                subtitle: Text(currency.pairSymbol == null
+                    ? '${currency.code} · base currency'
+                    : '${currency.code} · 1 USD ≈ ${currency.symbol}'
+                        '${ref.read(currencyProvider.notifier).liveRateFor(currency).toStringAsFixed(currency.decimals == 0 ? 0 : 2)}'),
                 trailing: currency.code == current.code
                     ? const Icon(Icons.check, color: AppTheme.up)
                     : null,

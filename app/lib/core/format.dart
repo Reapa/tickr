@@ -12,8 +12,9 @@ abstract final class Fmt {
   /// so formatting works before the preference loads (and in tests).
   static Currency current = Currency.usd;
 
-  /// Live display-units per 1 USD, driven by the currency's forex pair price
-  /// (see `displayRateProvider`). 1 for USD; updated as the pair trades.
+  /// Display-units per 1 USD. A snapshot of the currency's forex-pair price
+  /// taken when the currency is chosen (see `currencyProvider`), then held
+  /// steady so labels don't wobble every tick. 1 for USD.
   static double rate = 1;
 
   static final NumberFormat _qty = NumberFormat('#,##0.####');
