@@ -113,7 +113,7 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
 
   /// [usd] is a USD amount (e.g. a % of cash); shown in the display currency.
   void _setAmount(double usd) {
-    final display = usd * Fmt.current.perUsd;
+    final display = usd * Fmt.rate;
     _amount.text =
         display <= 0 ? '' : display.toStringAsFixed(Fmt.current.decimals);
   }

@@ -39,7 +39,7 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
   void initState() {
     super.initState();
     // Default stake ≈ $1000, shown in the player's display currency.
-    _margin.text = (1000 * Fmt.current.perUsd).toStringAsFixed(0);
+    _margin.text = (1000 * Fmt.rate).toStringAsFixed(0);
   }
 
   @override
@@ -132,7 +132,7 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
                   label: Text('${(frac * 100).toInt()}%'),
                   visualDensity: VisualDensity.compact,
                   onPressed: () => setState(() => _margin.text =
-                      (cash * frac * Fmt.current.perUsd)
+                      (cash * frac * Fmt.rate)
                           .floorToDouble()
                           .toString()),
                 ),

@@ -191,7 +191,7 @@ class LeveragePositionCard extends ConsumerWidget {
       BuildContext context, WidgetRef ref, double mark) async {
     // Prices are USD internally but typed/shown in the display currency.
     String disp(double usd) =>
-        (usd * Fmt.current.perUsd).toStringAsFixed(Fmt.current.decimals);
+        (usd * Fmt.rate).toStringAsFixed(Fmt.current.decimals);
     double? toUsdOrNull(String s) {
       final v = double.tryParse(s);
       return v == null ? null : Fmt.toUsd(v).toDouble();

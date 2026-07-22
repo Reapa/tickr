@@ -12,14 +12,17 @@ abstract final class Fmt {
   /// so formatting works before the preference loads (and in tests).
   static Currency current = Currency.usd;
 
+  /// Live display-units per 1 USD, driven by the currency's forex pair price
+  /// (see `displayRateProvider`). 1 for USD; updated as the pair trades.
+  static double rate = 1;
+
   static final NumberFormat _qty = NumberFormat('#,##0.####');
 
   /// Convert a USD amount to the display currency.
-  static num _conv(num usd) => usd * current.perUsd;
+  static num _conv(num usd) => usd * rate;
 
   /// Convert a value typed in the display currency back to USD.
-  static num toUsd(num display) =>
-      current.perUsd == 0 ? display : display / current.perUsd;
+  static num toUsd(num display) => rate == 0 ? display : display / rate;
 
   /// The active currency symbol, e.g. r'$' or 'R' — for input prefixes.
   static String get symbol => current.symbol;

@@ -86,7 +86,10 @@ insert into public.assets
   ('EURUSD', 'Euro vs Dollar',   'forex', 'forex', 'The world''s most traded pair.',            1.0850, 1.0850, 0.00, 0.08, 800000, 0.010, 0.40, 0.0002, '24_5'),
   ('GBPUSD', 'Pound vs Dollar',  'forex', 'forex', 'Cable: prone to political drama.',          1.2700, 1.2700, 0.00, 0.10, 600000, 0.010, 0.40, 0.0002, '24_5'),
   ('USDJPY', 'Dollar vs Yen',    'forex', 'forex', 'The carry-trade classic.',                148.5000,148.5000, 0.00, 0.09, 700000, 0.010, 0.40, 0.0002, '24_5'),
-  ('AUDUSD', 'Aussie vs Dollar', 'forex', 'forex', 'Rides commodity booms and busts.',          0.6550, 0.6550, 0.00, 0.11, 400000, 0.015, 0.40, 0.0003, '24_5');
+  ('AUDUSD', 'Aussie vs Dollar', 'forex', 'forex', 'Rides commodity booms and busts.',          0.6550, 0.6550, 0.00, 0.11, 400000, 0.015, 0.40, 0.0003, '24_5'),
+  ('USDZAR', 'Dollar vs Rand',   'forex', 'forex', 'Emerging-market rand: high carry, high drama.', 18.5000, 18.5000, 0.00, 0.14, 300000, 0.012, 0.40, 0.0006, '24_5'),
+  ('USDCAD', 'Dollar vs Loonie', 'forex', 'forex', 'Tracks oil and the neighbour up north.',         1.3600,  1.3600, 0.00, 0.09, 500000, 0.010, 0.40, 0.0003, '24_5'),
+  ('USDINR', 'Dollar vs Rupee',  'forex', 'forex', 'A managed float with a steady upward drift.',    83.5000, 83.5000, 0.00, 0.10, 350000, 0.012, 0.40, 0.0005, '24_5');
 
 -- ----------------------------------------------------------------------------
 -- Event templates: the news generator. Weights skew toward mild sector/asset
