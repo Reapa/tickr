@@ -96,6 +96,18 @@ class MarketRepository {
         .toList();
   }
 
+  /// The public earnings calendar: upcoming, not-yet-resolved announcements,
+  /// soonest first. Outcome columns aren't granted, so we never see the result.
+  Future<List<ScheduledEvent>> fetchUpcomingEvents({int limit = 20}) async {
+    final rows = await _client
+        .from('scheduled_events')
+        .select('id, asset_id, kind, headline, quarter, resolves_at, status')
+        .eq('status', 'scheduled')
+        .order('resolves_at', ascending: true)
+        .limit(limit);
+    return rows.map(ScheduledEvent.fromJson).toList();
+  }
+
   Future<List<MarketEvent>> fetchEvents({int limit = 50}) async {
     final rows = await _client
         .from('market_events')
@@ -239,6 +251,16 @@ final livePricesProvider = Provider<Map<String, double>>((ref) {
 final marketEventsProvider = StreamProvider<List<MarketEvent>>(
   (ref) => ref.watch(marketRepositoryProvider).watchEvents(),
 );
+
+/// The earnings calendar (upcoming announcements), refreshed every 5s so newly
+/// scheduled events appear and resolved ones drop off. The per-second countdown
+/// is driven by the widgets themselves, not by refetching.
+final upcomingEventsProvider =
+    FutureProvider.autoDispose<List<ScheduledEvent>>((ref) {
+  final timer = Timer(const Duration(seconds: 5), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+  return ref.watch(marketRepositoryProvider).fetchUpcomingEvents();
+});
 
 final assetClassesProvider = FutureProvider<List<AssetClass>>(
   (ref) => ref.watch(marketRepositoryProvider).fetchAssetClasses(),

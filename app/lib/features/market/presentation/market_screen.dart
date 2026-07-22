@@ -18,6 +18,7 @@ import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
 import '../domain/market_event.dart';
+import 'earnings_calendar.dart';
 import 'market_pulse.dart';
 import 'sparkline.dart';
 import 'ticker_tape.dart';
@@ -530,29 +531,30 @@ class _NewsTab extends ConsumerWidget {
     return AsyncView(
       value: events,
       builder: (eventList) {
-        if (eventList.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('No news yet — the market is quiet. For now.'),
-            ),
-          );
-        }
         return ListView(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  Text('Why prices move',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(width: 8),
-                  const ConceptChip(Concepts.newsMovesMarkets),
-                ],
+            const UpcomingEarningsSection(),
+            if (eventList.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(
+                    child: Text('No news yet — the market is quiet. For now.')),
+              )
+            else ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
+                  children: [
+                    Text('Why prices move',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(width: 8),
+                    const ConceptChip(Concepts.newsMovesMarkets),
+                  ],
+                ),
               ),
-            ),
-            for (final event in eventList)
-              EventTile(event: event, symbol: symbolById[event.assetId]),
+              for (final event in eventList)
+                EventTile(event: event, symbol: symbolById[event.assetId]),
+            ],
             const SizedBox(height: 24),
           ],
         );

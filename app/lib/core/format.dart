@@ -83,6 +83,14 @@ abstract final class Fmt {
     return '$sign${value.toStringAsFixed(2)}%';
   }
 
+  /// A short live countdown, e.g. "3m 20s" / "45s" / "now".
+  static String countdown(Duration d) {
+    if (d.inSeconds <= 0) return 'now';
+    if (d.inHours > 0) return '${d.inHours}h ${d.inMinutes % 60}m';
+    if (d.inMinutes > 0) return '${d.inMinutes}m ${d.inSeconds % 60}s';
+    return '${d.inSeconds}s';
+  }
+
   static String timeAgo(DateTime time) {
     final diff = DateTime.now().difference(time);
     if (diff.inSeconds < 60) return 'just now';

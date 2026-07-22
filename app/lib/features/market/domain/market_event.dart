@@ -45,6 +45,45 @@ class MarketEvent {
   bool get isLive => DateTime.now().isBefore(endsAt);
 }
 
+/// An announced-but-not-yet-resolved event on the earnings calendar. The
+/// outcome (beat/miss) is a server secret until it fires — the client only sees
+/// the teaser and the countdown, which is the whole point: form a thesis, then
+/// find out. When it resolves it becomes a normal [MarketEvent] in the feed.
+class ScheduledEvent {
+  const ScheduledEvent({
+    required this.id,
+    required this.assetId,
+    required this.kind,
+    required this.headline,
+    required this.quarter,
+    required this.resolvesAt,
+    required this.status,
+  });
+
+  factory ScheduledEvent.fromJson(Map<String, dynamic> json) => ScheduledEvent(
+        id: json['id'] as String,
+        assetId: json['asset_id'] as String,
+        kind: json['kind'] as String,
+        headline: json['headline'] as String,
+        quarter: json['quarter'] as String?,
+        resolvesAt: jsonDate(json['resolves_at']),
+        status: json['status'] as String,
+      );
+
+  final String id;
+  final String assetId;
+  final String kind; // earnings
+  final String headline;
+  final String? quarter;
+  final DateTime resolvesAt;
+  final String status; // scheduled | resolved | cancelled
+
+  Duration get countdown {
+    final left = resolvesAt.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+}
+
 /// One OHLC candle from the server-side aggregation (get_candles).
 class Candle {
   const Candle({

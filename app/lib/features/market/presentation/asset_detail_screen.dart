@@ -19,6 +19,7 @@ import '../../trading/presentation/order_ticket.dart';
 import '../../trading/presentation/protection_sheet.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
+import 'earnings_calendar.dart';
 import 'price_chart.dart';
 import 'widgets.dart';
 
@@ -94,6 +95,10 @@ class AssetDetailScreen extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: AssetEarningsBanner(assetId: asset.id),
           ),
           SizedBox(height: 280, child: PriceChart(asset: asset)),
           Padding(
