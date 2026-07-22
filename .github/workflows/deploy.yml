@@ -44,6 +44,14 @@ jobs:
             --dart-define=SUPABASE_URL=https://fvfzoiyxymrvyfguiooh.supabase.co \
             --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2ZnpvaXl4eW1ydnlmZ3Vpb29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2Mzk0MDIsImV4cCI6MjEwMDIxNTQwMn0.Xxc5uj76TnUmHxhAPvd0eaYjqvTUPtBrW_AhVlRKXFk
 
+      # Stamp the build so a long-lived session can detect a new deploy and
+      # prompt the user to refresh. The app polls this file and compares.
+      - name: Stamp build info
+        run: |
+          printf '{"buildId":"%s","builtAt":"%s","commit":"%s"}\n' \
+            "${GITHUB_SHA::7}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${GITHUB_SHA}" \
+            > build/web/build-info.json
+
       # SPA fallback so refreshing an in-app route doesn't 404 on Pages.
       - run: cp build/web/index.html build/web/404.html
 

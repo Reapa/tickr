@@ -148,6 +148,20 @@ class LeverageRepository {
         'p_take_profit': takeProfit,
         'p_stop_loss': stopLoss,
       });
+
+  /// A trailing stop that ratchets the position's stop-loss toward profit.
+  /// [trail] is a fraction when [isPercent] (0.05 = 5%), else a price distance.
+  Future<Map<String, dynamic>> setTrailingStop({
+    required String positionId,
+    required double trail,
+    required bool isPercent,
+  }) =>
+      _client
+          .rpc<Map<String, dynamic>>('set_leveraged_trailing_stop', params: {
+        'p_position_id': positionId,
+        'p_trail': trail,
+        'p_is_percent': isPercent,
+      });
 }
 
 final leverageRepositoryProvider = Provider<LeverageRepository>(

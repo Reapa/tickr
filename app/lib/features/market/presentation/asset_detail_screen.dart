@@ -113,6 +113,7 @@ class AssetDetailScreen extends ConsumerWidget {
                     ),
                     trailing: const ConceptChip(Concepts.avgCost),
                   ),
+                  _ActiveProtection(assetId: asset.id),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
                     child: Row(
@@ -130,6 +131,7 @@ class AssetDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
+          _PendingBuyOrders(assetId: asset.id, symbol: asset.symbol),
           if (levPositions.isNotEmpty) ...[
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -335,6 +337,121 @@ class _LeverageButton extends ConsumerWidget {
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('$error')));
     }
+  }
+}
+
+/// The live take-profit / stop-loss on this position. Because [openOrdersProvider]
+/// now streams, a trailing stop's level visibly ratchets up here as the price
+/// rises — which is the whole point of a trailing stop.
+class _ActiveProtection extends ConsumerWidget {
+  const _ActiveProtection({required this.assetId});
+
+  final String assetId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final orders = (ref.watch(openOrdersProvider).value ?? const <OpenOrder>[])
+        .where((o) => o.assetId == assetId && (o.isTakeProfit || o.isStopLoss))
+        .toList();
+    if (orders.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final o in orders)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                children: [
+                  Icon(
+                    o.isTakeProfit
+                        ? Icons.flag
+                        : o.isTrailingStop
+                            ? Icons.trending_up
+                            : Icons.shield,
+                    size: 15,
+                    color: o.isTakeProfit ? AppTheme.up : AppTheme.down,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(children: [
+                        TextSpan(
+                          text: '${o.kindLabel} @ ${Fmt.money(o.limitPrice)}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        if (o.isTrailingStop)
+                          TextSpan(
+                            text:
+                                '  · trails ${o.trailLabel}, follows the price up',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Queued buy limit/stop ("future") orders for this asset, each cancellable.
+class _PendingBuyOrders extends ConsumerWidget {
+  const _PendingBuyOrders({required this.assetId, required this.symbol});
+
+  final String assetId;
+  final String symbol;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final orders = (ref.watch(openOrdersProvider).value ?? const <OpenOrder>[])
+        .where((o) => o.assetId == assetId && o.isBuyEntry)
+        .toList();
+    if (orders.isEmpty) return const SizedBox.shrink();
+    return Card(
+      child: Column(
+        children: [
+          const ListTile(
+            dense: true,
+            leading: Icon(Icons.schedule, color: AppTheme.accent),
+            title: Text('Queued buy orders'),
+            subtitle: Text('Fill automatically when your target price is hit.'),
+          ),
+          for (final o in orders)
+            ListTile(
+              dense: true,
+              leading: Icon(
+                  o.orderType == 'limit'
+                      ? Icons.south_east
+                      : Icons.north_east,
+                  size: 18,
+                  color: AppTheme.accent),
+              title: Text('${o.kindLabel} · ${Fmt.quantity(o.quantity)} $symbol'),
+              subtitle: Text('Triggers at ${Fmt.price(o.limitPrice)}'),
+              trailing: IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Cancel order',
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await ref
+                        .read(tradingRepositoryProvider)
+                        .cancelPendingOrder(o.id);
+                    ref.invalidate(openOrdersProvider);
+                  } catch (error) {
+                    messenger
+                        .showSnackBar(SnackBar(content: Text('$error')));
+                  }
+                },
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

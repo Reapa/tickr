@@ -40,6 +40,7 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
   var _slEnabled = true;
   var _tpPercent = true; // percent vs fixed price
   var _slPercent = true;
+  var _slTrailing = false; // stop-loss trails the price
   final _tp = TextEditingController(text: '10');
   final _sl = TextEditingController(text: '5');
   var _busy = false;
@@ -91,15 +92,20 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
               Row(
                 children: [
                   Icon(
-                    order.isTakeProfit ? Icons.flag : Icons.shield,
+                    order.isTakeProfit
+                        ? Icons.flag
+                        : order.isTrailingStop
+                            ? Icons.trending_up
+                            : Icons.shield,
                     size: 16,
                     color: order.isTakeProfit ? AppTheme.up : AppTheme.down,
                   ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '${order.isTakeProfit ? 'Take profit' : 'Stop loss'} active '
-                      '@ ${Fmt.money(order.limitPrice)} (saving replaces it)',
+                      '${order.kindLabel} active @ ${Fmt.money(order.limitPrice)}'
+                      '${order.isTrailingStop ? ' (trails ${order.trailLabel})' : ''}'
+                      ' (saving replaces it)',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -138,6 +144,8 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
             resultPrice: _slPrice,
             asset: asset,
             holding: holding,
+            trailing: _slTrailing,
+            onTrailing: (v) => setState(() => _slTrailing = v),
             onEnabled: (v) => setState(() => _slEnabled = v),
             onMode: (v) => setState(() => _slPercent = v),
             onChanged: () => setState(() {}),
@@ -159,32 +167,46 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
   }
 
   Future<void> _save() async {
-    final tp = _tpEnabled ? _tpPrice : null;
-    final sl = _slEnabled ? _slPrice : null;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    if (tp == null && sl == null) return;
+    final repo = ref.read(tradingRepositoryProvider);
+    final assetId = widget.asset.id;
+
+    final tp = _tpEnabled ? _tpPrice : null;
+    final trailing = _slEnabled && _slTrailing;
+    final sl = (_slEnabled && !_slTrailing) ? _slPrice : null;
+    if (tp == null && sl == null && !trailing) return;
     setState(() => _busy = true);
     try {
-      final result =
-          await ref.read(tradingRepositoryProvider).setPositionProtection(
-                assetId: widget.asset.id,
-                takeProfit: tp,
-                stopLoss: sl,
-              );
-      if (result['status'] == 'protected') {
-        ref.invalidate(openOrdersProvider);
-        ref.invalidate(missionsProvider);
-        navigator.pop();
-        messenger.showSnackBar(SnackBar(
-          content: Text([
-            if (tp != null) '🎯 TP @ ${Fmt.money(tp)}',
-            if (sl != null) '🛡 SL @ ${Fmt.money(sl)}',
-          ].join(' · ')),
-        ));
-      } else {
-        messenger.showSnackBar(SnackBar(content: Text('${result['reason']}')));
+      final labels = <String>[];
+      // A take-profit and/or a fixed stop-loss go through position protection.
+      if (tp != null || sl != null) {
+        final result = await repo.setPositionProtection(
+            assetId: assetId, takeProfit: tp, stopLoss: sl);
+        if (result['status'] != 'protected') {
+          messenger.showSnackBar(SnackBar(content: Text('${result['reason']}')));
+          return;
+        }
+        if (tp != null) labels.add('🎯 TP @ ${Fmt.money(tp)}');
+        if (sl != null) labels.add('🛡 SL @ ${Fmt.money(sl)}');
       }
+      // A trailing stop is a separate call (it replaces any fixed stop-loss).
+      if (trailing) {
+        final raw = double.tryParse(_sl.text) ?? 0;
+        final trail = _slPercent ? raw / 100 : raw;
+        final result = await repo.setTrailingStop(
+            assetId: assetId, trail: trail, isPercent: _slPercent);
+        if (result['status'] != 'protected') {
+          messenger.showSnackBar(SnackBar(content: Text('${result['reason']}')));
+          return;
+        }
+        labels.add('🛡 Trailing SL '
+            '${_slPercent ? '${raw.toStringAsFixed(0)}%' : Fmt.money(raw)}');
+      }
+      ref.invalidate(openOrdersProvider);
+      ref.invalidate(missionsProvider);
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(labels.join(' · '))));
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('$error')));
     } finally {
@@ -220,6 +242,8 @@ class _TriggerEditor extends StatelessWidget {
     required this.onEnabled,
     required this.onMode,
     required this.onChanged,
+    this.trailing = false,
+    this.onTrailing,
   });
 
   final String label;
@@ -236,8 +260,17 @@ class _TriggerEditor extends StatelessWidget {
   final ValueChanged<bool> onMode;
   final VoidCallback onChanged;
 
+  /// When [onTrailing] is provided this editor offers a trailing-stop toggle.
+  final bool trailing;
+  final ValueChanged<bool>? onTrailing;
+
   @override
   Widget build(BuildContext context) {
+    final trailVal = double.tryParse(controller.text) ?? 0;
+    // A trailing stop starts a distance below the current price, then follows.
+    final trailStart = isPercent
+        ? asset.currentPrice * (1 - trailVal / 100)
+        : asset.currentPrice - trailVal;
     final pnlAtTrigger = resultPrice == null
         ? null
         : holding.quantity * (resultPrice! - holding.avgCost);
@@ -265,7 +298,25 @@ class _TriggerEditor extends StatelessWidget {
           ],
         ),
         if (enabled) ...[
-          Text(hint, style: Theme.of(context).textTheme.bodySmall),
+          if (onTrailing != null)
+            Row(
+              children: [
+                Checkbox(
+                    value: trailing,
+                    visualDensity: VisualDensity.compact,
+                    onChanged: (v) => onTrailing!(v ?? false)),
+                Expanded(
+                  child: Text('Trailing — follow the price up, never down',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ),
+              ],
+            ),
+          Text(
+              trailing
+                  ? 'Sets the stop $trailVal${isPercent ? '%' : r'$'} below the '
+                      'peak; it ratchets up as the price rises to lock in gains.'
+                  : hint,
+              style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -300,7 +351,15 @@ class _TriggerEditor extends StatelessWidget {
                   ),
             ],
           ),
-          if (resultPrice != null)
+          if (trailing && trailVal > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Starts around ${Fmt.money(trailStart)} and climbs with the price.',
+                style: TextStyle(fontSize: 12, color: color),
+              ),
+            )
+          else if (!trailing && resultPrice != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(

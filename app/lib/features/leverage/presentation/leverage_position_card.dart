@@ -195,52 +195,88 @@ class LeveragePositionCard extends ConsumerWidget {
     final sl = TextEditingController(
         text: position.stopLoss?.toStringAsFixed(2) ??
             (position.isLong ? (mark * 0.97) : (mark * 1.03)).toStringAsFixed(2));
+    final trail = TextEditingController(text: '5');
+    var useTrailing = false;
     final messenger = ScaffoldMessenger.of(context);
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Protect position'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: tp,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                  labelText: 'Take profit price', prefixText: r'$ '),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: sl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: 'Stop loss price',
-                prefixText: r'$ ',
-                helperText:
-                    'Must stay inside liq ${Fmt.money(position.liquidationPrice)}',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Protect position'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: tp,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                    labelText: 'Take profit price', prefixText: r'$ '),
               ),
-            ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Checkbox(
+                      value: useTrailing,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: (v) =>
+                          setState(() => useTrailing = v ?? false)),
+                  const Expanded(child: Text('Trailing stop (follows the price)')),
+                ],
+              ),
+              useTrailing
+                  ? TextField(
+                      controller: trail,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Trail distance',
+                        suffixText: '%',
+                        helperText: 'Ratchets toward profit, never back.',
+                      ),
+                    )
+                  : TextField(
+                      controller: sl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Stop loss price',
+                        prefixText: r'$ ',
+                        helperText:
+                            'Must stay inside liq ${Fmt.money(position.liquidationPrice)}',
+                      ),
+                    ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Save')),
           ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save')),
-        ],
       ),
     );
     if (saved != true) return;
     try {
-      final result = await ref.read(leverageRepositoryProvider).setProtection(
-            positionId: position.id,
-            takeProfit: double.tryParse(tp.text),
-            stopLoss: double.tryParse(sl.text),
-          );
+      final repo = ref.read(leverageRepositoryProvider);
+      final Map<String, dynamic> result;
+      if (useTrailing) {
+        final raw = double.tryParse(trail.text) ?? 0;
+        result = await repo.setTrailingStop(
+          positionId: position.id,
+          trail: raw / 100,
+          isPercent: true,
+        );
+      } else {
+        result = await repo.setProtection(
+          positionId: position.id,
+          takeProfit: double.tryParse(tp.text),
+          stopLoss: double.tryParse(sl.text),
+        );
+      }
       messenger.showSnackBar(SnackBar(
           content: Text(result['status'] == 'protected'
               ? 'Protection set'

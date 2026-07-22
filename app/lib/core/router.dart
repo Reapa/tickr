@@ -12,6 +12,7 @@ import '../features/market/presentation/market_screen.dart';
 import '../features/missions/presentation/missions_screen.dart';
 import '../features/portfolio/presentation/portfolio_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
+import '../features/releases/presentation/release_notes_screen.dart';
 import '../features/social/presentation/friends_screen.dart';
 import '../features/store/presentation/store_screen.dart';
 import 'shell_screen.dart';
@@ -58,6 +59,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/store',
         builder: (context, state) => const StoreScreen(),
+      ),
+      GoRoute(
+        path: '/whats-new',
+        builder: (context, state) => const ReleaseNotesScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => ShellScreen(shell: shell),

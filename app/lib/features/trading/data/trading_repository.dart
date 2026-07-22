@@ -70,6 +70,54 @@ class TradingRepository {
         'p_stop_loss': stopLoss,
       });
 
+  /// Queue a buy order that the tick engine fills when the price reaches a
+  /// target: order_type 'limit' buys the dip (below market), 'stop' buys the
+  /// breakout (above market). Cash is checked at fill, not reserved now.
+  Future<OrderReceipt> placePendingOrder({
+    required String assetId,
+    required String orderType,
+    required double quantity,
+    required double limitPrice,
+  }) async {
+    final json = await _client.rpc<Map<String, dynamic>>(
+      'place_pending_order',
+      params: {
+        'p_asset_id': assetId,
+        'p_side': 'buy',
+        'p_quantity': quantity,
+        'p_order_type': orderType,
+        'p_limit_price': limitPrice,
+      },
+    );
+    return OrderReceipt.fromJson(json);
+  }
+
+  /// Set a trailing stop on a spot position: a stop-loss that ratchets toward
+  /// profit as the price moves your way and never back. [trail] is a fraction
+  /// when [isPercent] (0.05 = 5%), otherwise a fixed price distance.
+  Future<Map<String, dynamic>> setTrailingStop({
+    required String assetId,
+    required double trail,
+    required bool isPercent,
+  }) =>
+      _client.rpc<Map<String, dynamic>>('set_trailing_stop', params: {
+        'p_asset_id': assetId,
+        'p_trail': trail,
+        'p_is_percent': isPercent,
+      });
+
+  /// Trailing stop for a leveraged position (ratchets its stop-loss level).
+  Future<Map<String, dynamic>> setLeveragedTrailingStop({
+    required String positionId,
+    required double trail,
+    required bool isPercent,
+  }) =>
+      _client.rpc<Map<String, dynamic>>('set_leveraged_trailing_stop', params: {
+        'p_position_id': positionId,
+        'p_trail': trail,
+        'p_is_percent': isPercent,
+      });
+
   Future<void> cancelPendingOrder(String orderId) =>
       _client.rpc<void>('cancel_pending_order', params: {'p_order_id': orderId});
 

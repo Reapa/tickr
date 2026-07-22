@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/env.dart';
+import 'core/prefs.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 
@@ -13,7 +15,11 @@ Future<void> main() async {
     // Accepts either a legacy anon JWT or a new sb_publishable_... key.
     publishableKey: Env.supabaseAnonKey,
   );
-  runApp(const ProviderScope(child: TradingGameApp()));
+  final prefs = await SharedPreferences.getInstance();
+  runApp(ProviderScope(
+    overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    child: const TradingGameApp(),
+  ));
 }
 
 class TradingGameApp extends ConsumerWidget {

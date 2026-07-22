@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/brand.dart';
 import '../../../core/format.dart';
@@ -125,6 +126,15 @@ class ProfileScreen extends ConsumerWidget {
                     isUnlocked: unlocked.contains(cls.id),
                     cash: profile.cashBalance,
                   ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.new_releases_outlined),
+                    title: const Text("What's new"),
+                    subtitle: const Text('Recent updates and improvements'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/whats-new'),
+                  ),
+                ),
                 const SizedBox(height: 24),
               ],
             ),

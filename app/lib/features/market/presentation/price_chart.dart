@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format.dart';
+import '../../../core/prefs.dart';
 import '../../../core/theme.dart';
 import '../../portfolio/data/portfolio_repository.dart';
+import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
 import '../domain/market_event.dart';
@@ -36,7 +38,7 @@ class _PriceChartState extends ConsumerState<PriceChart> {
     ('1h', 3600),
   ];
 
-  int? _bucketSeconds = 300; // default: 5m candles
+  late int? _bucketSeconds = ref.read(chartPrefsProvider).bucketSeconds;
 
   @override
   Widget build(BuildContext context) {
@@ -55,8 +57,18 @@ class _PriceChartState extends ConsumerState<PriceChart> {
       for (final order in protection)
         (
           price: order.limitPrice,
-          color: order.isTakeProfit ? AppTheme.up : AppTheme.down,
-          label: order.isTakeProfit ? 'TP' : 'SL',
+          color: order.isTakeProfit
+              ? AppTheme.up
+              : order.isStopLoss
+                  ? AppTheme.down
+                  : AppTheme.accent, // buy limit/stop (a queued entry)
+          label: order.isTakeProfit
+              ? 'TP'
+              : order.isStopLoss
+                  ? 'SL'
+                  : order.orderType == 'limit'
+                      ? 'Buy ▼'
+                      : 'Buy ▲',
         ),
     ];
 
@@ -75,7 +87,10 @@ class _PriceChartState extends ConsumerState<PriceChart> {
                     label: Text(label, style: const TextStyle(fontSize: 12)),
                     selected: _bucketSeconds == bucket,
                     visualDensity: VisualDensity.compact,
-                    onSelected: (_) => setState(() => _bucketSeconds = bucket),
+                    onSelected: (_) {
+                      setState(() => _bucketSeconds = bucket);
+                      ref.read(chartPrefsProvider.notifier).setBucket(bucket);
+                    },
                   ),
                 ),
             ],
@@ -149,11 +164,20 @@ class _CandleMode extends ConsumerStatefulWidget {
 }
 
 class _CandleModeState extends ConsumerState<_CandleMode> {
+  // Height reserved for the time axis; also lets us map price <-> Y for the
+  // draggable protection handles so they line up with the chart's plot area.
+  static const double _kBottomAxis = 22;
+
   // Windowing state: how many candles are visible (zoom) and how far the right
   // edge sits from the newest candle (pan; 0 = following the live edge).
-  double _visible = 40;
+  // The zoom level is seeded from and written back to the player's saved prefs.
+  late double _visible = ref.read(chartPrefsProvider).visibleCandles;
   double _fromEnd = 0;
-  double _scaleStartVisible = 40;
+  late double _scaleStartVisible = _visible;
+
+  /// Persist the current zoom so reopening any chart restores it.
+  void _saveZoom() =>
+      ref.read(chartPrefsProvider.notifier).setVisibleCandles(_visible);
 
   // The candle whose OHLC tooltip is showing (null = none). Driven manually so
   // it clears the moment the finger lifts — the built-in tooltip would stick,
@@ -162,6 +186,39 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
 
   void _clearTouch() {
     if (_touchedIndex != null) setState(() => _touchedIndex = null);
+  }
+
+  // Which protection line ('TP'/'SL') is being dragged, and its live price.
+  String? _dragLabel;
+  double? _dragPrice;
+
+  /// Commit a dragged take-profit / stop-loss to the server.
+  Future<void> _persistProtection(String label) async {
+    final price = _dragPrice;
+    if (price == null) {
+      setState(() => _dragLabel = null);
+      return;
+    }
+    try {
+      await ref.read(tradingRepositoryProvider).setPositionProtection(
+            assetId: widget.asset.id,
+            takeProfit: label == 'TP' ? price : null,
+            stopLoss: label == 'SL' ? price : null,
+          );
+      ref.invalidate(openOrdersProvider);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not update: $error')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dragLabel = null;
+          _dragPrice = null;
+        });
+      }
+    }
   }
 
   @override
@@ -215,10 +272,24 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
     );
     final bandHalf = (maxY - minY) * 0.0025;
 
-    void zoom(double factor) => setState(() {
-          _visible = (_visible * factor)
-              .clamp(minVisible.toDouble(), total.toDouble());
-        });
+    // While a TP/SL handle is being dragged, render that line at the dragged
+    // price. The Y range stays fixed to widget.markers so the drag maps 1:1.
+    final displayMarkers = _dragLabel == null
+        ? widget.markers
+        : [
+            for (final m in widget.markers)
+              (m.label == _dragLabel && _dragPrice != null)
+                  ? (price: _dragPrice!, color: m.color, label: m.label)
+                  : m,
+          ];
+
+    void zoom(double factor) {
+      setState(() {
+        _visible = (_visible * factor)
+            .clamp(minVisible.toDouble(), total.toDouble());
+      });
+      _saveZoom();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -230,6 +301,11 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
           final tip = (_touchedIndex != null && _touchedIndex! < spots.length)
               ? [_touchedIndex!]
               : const <int>[];
+          // Map a price to its Y pixel within the plot area (above the axis).
+          final plotHeight =
+              (constraints.maxHeight - _kBottomAxis).clamp(1.0, double.infinity);
+          final span = (maxY - minY).abs() < 1e-9 ? 1.0 : maxY - minY;
+          double yForPrice(double price) => (maxY - price) / span * plotHeight;
           return Stack(
             children: [
               // Listener catches the raw pointer-up even when the gesture is
@@ -241,6 +317,7 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                 child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onScaleStart: (_) => _scaleStartVisible = _visible,
+                onScaleEnd: (_) => _saveZoom(),
                 onScaleUpdate: (details) {
                   setState(() {
                     // Pinch → zoom (fewer candles as you spread fingers).
@@ -261,6 +338,34 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                     maxY: maxY,
                     showingTooltipIndicators: tip,
                     candlestickTouchData: CandlestickTouchData(
+                      // Override the default OHLC tooltip, which renders values
+                      // as whole numbers (.toInt()) — useless for slow movers.
+                      touchTooltipData: CandlestickTouchTooltipData(
+                        getTooltipItems: (painter, spot, index) {
+                          final color = spot.isUp ? AppTheme.up : AppTheme.down;
+                          final label = TextStyle(
+                              color: Colors.grey.shade400, fontSize: 11);
+                          final val = TextStyle(
+                              color: color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700);
+                          TextSpan row(String k, double v, {bool last = false}) =>
+                              TextSpan(children: [
+                                TextSpan(text: k, style: label),
+                                TextSpan(
+                                    text: '${Fmt.price(v)}${last ? '' : '\n'}',
+                                    style: val),
+                              ]);
+                          return CandlestickTooltipItem('',
+                              textAlign: TextAlign.left,
+                              children: [
+                                row('O ', spot.open),
+                                row('H ', spot.high),
+                                row('L ', spot.low),
+                                row('C ', spot.close, last: true),
+                              ]);
+                        },
+                      ),
                       // We drive the tooltip ourselves via showingTooltipIndicators
                       // so it can be dismissed on pointer-up.
                       handleBuiltInTouches: false,
@@ -280,7 +385,7 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                     ),
                     rangeAnnotations: RangeAnnotations(
                       horizontalRangeAnnotations: [
-                        for (final marker in widget.markers)
+                        for (final marker in displayMarkers)
                           HorizontalRangeAnnotation(
                             y1: marker.price - bandHalf,
                             y2: marker.price + bandHalf,
@@ -301,6 +406,7 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                       bottomTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
+                          reservedSize: _kBottomAxis,
                           interval:
                               (window.length / 4).clamp(1, 999).toDouble(),
                           getTitlesWidget: (value, meta) {
@@ -325,7 +431,7 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                           reservedSize: 56,
                           getTitlesWidget: (value, meta) => Padding(
                             padding: const EdgeInsets.only(left: 4),
-                            child: Text(Fmt.moneyCompact(value),
+                            child: Text(Fmt.priceAxis(value),
                                 style: const TextStyle(fontSize: 10)),
                           ),
                         ),
@@ -363,17 +469,101 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                       _ChartBtn(
                         icon: Icons.skip_next,
                         tooltip: 'Live',
-                        onTap: () => setState(() {
-                          _fromEnd = 0;
-                          _visible = 40;
-                        }),
+                        onTap: () {
+                          setState(() {
+                            _fromEnd = 0;
+                            _visible = 40;
+                          });
+                          _saveZoom();
+                        },
                       ),
                   ],
                 ),
               ),
+              // Draggable TP / SL handles, pinned to the price axis. Drag to
+              // adjust; releasing commits the new level to the server.
+              for (final m in displayMarkers)
+                if (m.label == 'TP' || m.label == 'SL')
+                  Positioned(
+                    right: 0,
+                    top: (yForPrice(m.price) - 12)
+                        .clamp(0.0, plotHeight - 24),
+                    child: _ProtectionHandle(
+                      label: m.label,
+                      price: m.price,
+                      color: m.color,
+                      onDragStart: () => setState(() {
+                        _dragLabel = m.label;
+                        _dragPrice = m.price;
+                      }),
+                      onDragDelta: (dy) => setState(() {
+                        var p = (_dragPrice ?? m.price) - dy / plotHeight * span;
+                        p = p.clamp(minY, maxY);
+                        // Keep TP above and SL below the live price so the
+                        // server won't reject the level.
+                        if (m.label == 'TP' && p < live * 1.001) {
+                          p = live * 1.001;
+                        } else if (m.label == 'SL' && p > live * 0.999) {
+                          p = live * 0.999;
+                        }
+                        _dragPrice = p;
+                      }),
+                      onDragEnd: () => _persistProtection(m.label),
+                    ),
+                  ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// A grab handle for a take-profit / stop-loss line, sitting in the price
+/// gutter. Vertical drags move the level; release commits it.
+class _ProtectionHandle extends StatelessWidget {
+  const _ProtectionHandle({
+    required this.label,
+    required this.price,
+    required this.color,
+    required this.onDragStart,
+    required this.onDragDelta,
+    required this.onDragEnd,
+  });
+
+  final String label;
+  final double price;
+  final Color color;
+  final VoidCallback onDragStart;
+  final ValueChanged<double> onDragDelta;
+  final VoidCallback onDragEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragStart: (_) => onDragStart(),
+      onVerticalDragUpdate: (d) => onDragDelta(d.delta.dy),
+      onVerticalDragEnd: (_) => onDragEnd(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.drag_indicator, size: 12, color: Colors.black),
+            Text(
+              '$label ${Fmt.price(price)}',
+              style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -463,7 +653,7 @@ class _LineMode extends ConsumerWidget {
               getTooltipItems: (touched) => [
                 for (final spot in touched)
                   LineTooltipItem(
-                    Fmt.money(spot.y),
+                    Fmt.price(spot.y),
                     const TextStyle(fontWeight: FontWeight.w600),
                   ),
               ],

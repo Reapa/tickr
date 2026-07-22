@@ -625,6 +625,21 @@ class _ChallengeTile extends ConsumerWidget {
         ? myNw / myStart - 1
         : null;
 
+    // Opponent's live return: their current net worth (from the friends board)
+    // vs their challenge-start snapshot. Shown live so the race is honest.
+    final oppId = challenge.opponentId(myId);
+    final oppNw = (ref.watch(friendsLeaderboardProvider).value ??
+            const <LeaderboardEntry>[])
+        .where((e) => e.userId == oppId)
+        .firstOrNull
+        ?.value;
+    final oppStart = challenge.challengerId == myId
+        ? challenge.challengeeStartNw
+        : challenge.challengerStartNw;
+    final theirLive = (oppStart != null && oppStart > 0 && oppNw != null)
+        ? oppNw / oppStart - 1
+        : null;
+
     final iWon = challenge.winnerId == myId;
     final completed = challenge.status == 'completed';
 
@@ -673,11 +688,13 @@ class _ChallengeTile extends ConsumerWidget {
                 ),
                 _Fighter(
                   name: opponent,
-                  // Opponent's live return is hidden until the reveal.
-                  ret: completed ? theirFinal : null,
+                  ret: completed ? theirFinal : theirLive,
                   highlight: completed && !iWon && challenge.winnerId != null,
-                  pending: !completed,
-                  hiddenLive: challenge.status == 'active',
+                  pending: completed
+                      ? false
+                      : challenge.status == 'active'
+                          ? theirLive == null
+                          : true,
                 ),
               ],
             ),
@@ -747,14 +764,12 @@ class _Fighter extends StatelessWidget {
     required this.ret,
     required this.highlight,
     required this.pending,
-    this.hiddenLive = false,
   });
 
   final String name;
   final double? ret;
   final bool highlight;
   final bool pending;
-  final bool hiddenLive;
 
   @override
   Widget build(BuildContext context) {
@@ -780,11 +795,7 @@ class _Fighter extends StatelessWidget {
                   fontWeight: FontWeight.w700, fontSize: 12.5)),
           const SizedBox(height: 2),
           Text(
-            hiddenLive
-                ? '···'
-                : pending
-                    ? '—'
-                    : Fmt.pct(ret ?? 0),
+            pending ? '—' : Fmt.pct(ret ?? 0),
             style: TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 15,

@@ -11,20 +11,32 @@ class MissionStatus {
     required this.title,
     required this.description,
     required this.concept,
+    required this.cadence,
     required this.rewardCash,
     required this.rewardXp,
+    required this.rewardGems,
     required this.completed,
     required this.completedAt,
+    required this.expiresAt,
+    required this.sortOrder,
   });
 
   final String code;
   final String title;
   final String description;
   final String concept;
+
+  /// 'permanent' (milestones), 'daily', or 'weekly'.
+  final String cadence;
   final double rewardCash;
   final int rewardXp;
+  final int rewardGems;
   final bool completed;
   final DateTime? completedAt;
+
+  /// When this cycle resets; null for permanent milestones.
+  final DateTime? expiresAt;
+  final int sortOrder;
 }
 
 class MissionsRepository {
@@ -33,33 +45,41 @@ class MissionsRepository {
   final SupabaseClient _client;
 
   Future<List<MissionStatus>> fetchMissions() async {
-    final missions = await _client
-        .from('missions')
-        .select('id, code, title, description, concept, reward_cash, '
-            'reward_xp, sort_order')
-        .eq('is_active', true)
-        .order('sort_order', ascending: true);
-    final mine = await _client
-        .from('user_missions')
-        .select('mission_id, status, completed_at');
-    final mineById = {
-      for (final row in mine) row['mission_id'] as String: row,
-    };
-    return missions.map((m) {
-      final progress = mineById[m['id'] as String];
-      return MissionStatus(
+    // Make sure this cycle's daily/weekly board is assigned before we read it,
+    // and re-evaluate so freshly-rolled missions reflect play already done.
+    await _client.rpc<void>('refresh_my_missions');
+
+    final rows = await _client.from('user_missions').select(
+        'status, completed_at, cadence, expires_at, '
+        'missions(code, title, description, concept, reward_cash, '
+        'reward_xp, reward_gems, sort_order)');
+
+    final now = DateTime.now().toUtc();
+    final list = <MissionStatus>[];
+    for (final row in rows) {
+      final m = row['missions'] as Map<String, dynamic>;
+      final expiresAt =
+          row['expires_at'] == null ? null : jsonDate(row['expires_at']);
+      // Hide a lapsed cycle's missions until the rotation swaps them out.
+      if (expiresAt != null && expiresAt.isBefore(now)) continue;
+      list.add(MissionStatus(
         code: m['code'] as String,
         title: m['title'] as String,
         description: m['description'] as String,
         concept: m['concept'] as String,
+        cadence: row['cadence'] as String,
         rewardCash: jsonDouble(m['reward_cash']),
         rewardXp: jsonInt(m['reward_xp']),
-        completed: progress?['status'] == 'completed',
-        completedAt: progress?['completed_at'] == null
+        rewardGems: jsonInt(m['reward_gems']),
+        completed: row['status'] == 'completed',
+        completedAt: row['completed_at'] == null
             ? null
-            : jsonDate(progress!['completed_at']),
-      );
-    }).toList();
+            : jsonDate(row['completed_at']),
+        expiresAt: expiresAt,
+        sortOrder: jsonInt(m['sort_order']),
+      ));
+    }
+    return list;
   }
 }
 

@@ -9,6 +9,7 @@ import '../features/portfolio/presentation/positions_bar.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/profile/presentation/daily_reward_dialog.dart';
 import '../features/trading/data/trigger_alerts.dart';
+import 'app_update.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets/celebration.dart';
@@ -148,6 +149,7 @@ class ShellScreen extends ConsumerWidget {
             Expanded(
               child: Column(
                 children: [
+                  const _UpdateBanner(),
                   Expanded(child: shell),
                   const PositionsBar(),
                 ],
@@ -160,6 +162,7 @@ class ShellScreen extends ConsumerWidget {
     return Scaffold(
       body: Column(
         children: [
+          const _UpdateBanner(),
           Expanded(child: shell),
           const PositionsBar(),
         ],
@@ -171,6 +174,53 @@ class ShellScreen extends ConsumerWidget {
           for (final d in _destinations)
             NavigationDestination(icon: Icon(d.icon), label: d.label),
         ],
+      ),
+    );
+  }
+}
+
+/// A slim bar that appears only once a newer build has been deployed, offering
+/// a one-tap refresh (and a peek at what changed). Invisible otherwise.
+class _UpdateBanner extends ConsumerWidget {
+  const _UpdateBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final update = ref.watch(appUpdateProvider).value ?? AppUpdate.none;
+    if (!update.updateAvailable) return const SizedBox.shrink();
+    return Material(
+      color: AppTheme.accent,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.rocket_launch, size: 18, color: Colors.black),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'A new version of Tickr is available.',
+                  style: TextStyle(
+                      color: Colors.black, fontWeight: FontWeight.w600),
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.push('/whats-new'),
+                style: TextButton.styleFrom(foregroundColor: Colors.black),
+                child: const Text("What's new"),
+              ),
+              FilledButton(
+                onPressed: applyUpdate,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: const Text('Refresh'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -49,11 +49,13 @@ select ok(game.has_class_unlock('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stocks'
   'stocks unlocked at signup');
 select ok(not game.has_class_unlock('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'real_estate'),
   'real estate locked at signup');
+-- Onboarding enrolls the permanent milestones only; the rotating daily/weekly
+-- board is assigned lazily on first Missions-screen load (refresh_my_missions).
 select is(
   (select count(*) from user_missions
     where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-  (select count(*) from missions where is_active),
-  'all active missions enrolled at signup');
+  (select count(*) from missions where is_active and cadence = 'permanent'),
+  'permanent missions enrolled at signup');
 select is(starting_net_worth, 10000.00::numeric(18,2), 'joined active season at starting cash')
   from season_scores where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 

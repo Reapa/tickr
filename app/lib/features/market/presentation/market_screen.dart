@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/brand.dart';
@@ -15,11 +16,26 @@ import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
+import '../domain/market_event.dart';
 import 'market_pulse.dart';
 import 'sparkline.dart';
 import 'ticker_tape.dart';
 import 'top_movers.dart';
 import 'widgets.dart';
+
+/// How the stock list is ordered/filtered.
+enum StockSort {
+  symbol('A–Z'),
+  gainers('Top gainers'),
+  losers('Top losers'),
+  priceHigh('Price ▼'),
+  priceLow('Price ▲');
+
+  const StockSort(this.label);
+  final String label;
+}
+
+final stockSortProvider = StateProvider<StockSort>((ref) => StockSort.symbol);
 
 /// The market: separate tabs for the traditional assets, the 24/7 crypto
 /// desk, the 24/5 forex desk, and the news feed that explains the moves.
@@ -33,12 +49,6 @@ class MarketScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: tickrAppBar(
           title: 'Market',
-          actions: const [
-            Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Center(child: ConceptChip(Concepts.supplyDemand)),
-            ),
-          ],
           bottom: const _CategoryTabBar(items: [
             (icon: Icons.trending_up, label: 'Stocks'),
             (icon: Icons.apartment, label: 'Real Estate'),
@@ -202,6 +212,33 @@ class _MarketList extends ConsumerWidget {
     final classes = ref.watch(assetClassesProvider);
     final unlocked = ref.watch(unlockedClassesProvider);
 
+    // Change-per-asset (from the movers RPC) drives the gainers/losers sort.
+    final changeById = {
+      for (final m in ref.watch(moversProvider).value ?? const <Mover>[])
+        m.assetId: m.changePct,
+    };
+    // Sorting/filtering is offered only on the Stocks tab (showMovers).
+    final sort = showMovers ? ref.watch(stockSortProvider) : StockSort.symbol;
+
+    List<Asset> sortAssets(List<Asset> input) {
+      final list = [...input];
+      switch (sort) {
+        case StockSort.symbol:
+          list.sort((a, b) => a.symbol.compareTo(b.symbol));
+        case StockSort.gainers:
+          list.sort((a, b) => (changeById[b.id] ?? -1e9)
+              .compareTo(changeById[a.id] ?? -1e9));
+        case StockSort.losers:
+          list.sort((a, b) => (changeById[a.id] ?? 1e9)
+              .compareTo(changeById[b.id] ?? 1e9));
+        case StockSort.priceHigh:
+          list.sort((a, b) => b.currentPrice.compareTo(a.currentPrice));
+        case StockSort.priceLow:
+          list.sort((a, b) => a.currentPrice.compareTo(b.currentPrice));
+      }
+      return list;
+    }
+
     return AsyncView(
       value: assets,
       loading: const SkeletonList(),
@@ -225,11 +262,47 @@ class _MarketList extends ConsumerWidget {
                 const MarketPulse(),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Text('Top Movers · 24h',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Top Movers · 24h',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 13)),
+                      ),
+                      ConceptChip(Concepts.supplyDemand),
+                    ],
+                  ),
                 ),
                 const TopMovers(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: SizedBox(
+                    height: 34,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8, left: 4),
+                          child: Center(
+                              child: Icon(Icons.sort, size: 16)),
+                        ),
+                        for (final s in StockSort.values)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ChoiceChip(
+                              label: Text(s.label,
+                                  style: const TextStyle(fontSize: 12)),
+                              selected: sort == s,
+                              visualDensity: VisualDensity.compact,
+                              onSelected: (_) => ref
+                                  .read(stockSortProvider.notifier)
+                                  .state = s,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
               if (banner != null)
                 Padding(
@@ -257,8 +330,8 @@ class _MarketList extends ConsumerWidget {
                     ),
                   )
                 else if (unlockedIds.contains(cls.id))
-                  ...assetList
-                      .where((a) => a.classId == cls.id)
+                  ...sortAssets(
+                          assetList.where((a) => a.classId == cls.id).toList())
                       .map((a) => _AssetTile(asset: a))
                 else
                   _LockedClassCard(assetClass: cls),
