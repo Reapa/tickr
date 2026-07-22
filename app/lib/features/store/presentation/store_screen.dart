@@ -57,7 +57,15 @@ class StoreScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              _GemPackages(onBuy: (package) => _buyGems(context, ref, package)),
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.diamond_outlined, color: AppTheme.accent),
+                  title: Text('Gem top-ups coming soon'),
+                  subtitle: Text(
+                      'Buying gems is disabled while we wire up real payments. '
+                      'Spend the gems you have on cosmetics below.'),
+                ),
+              ),
               for (final entry in slots.entries) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -82,61 +90,6 @@ class StoreScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _buyGems(
-      BuildContext context, WidgetRef ref, String package) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final result =
-          await ref.read(storeRepositoryProvider).stubPurchasePremium(package);
-      messenger.showSnackBar(SnackBar(
-          content: Text('+${result['amount']} gems (stub purchase — free '
-              'in v1, real IAP later)')));
-    } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('$error')));
-    }
-  }
-}
-
-class _GemPackages extends StatelessWidget {
-  const _GemPackages({required this.onBuy});
-
-  final void Function(String package) onBuy;
-
-  static const _packages = [
-    (id: 'small', gems: 100, price: r'$0.99'),
-    (id: 'medium', gems: 550, price: r'$4.99'),
-    (id: 'large', gems: 1200, price: r'$9.99'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          for (final p in _packages)
-            Expanded(
-              child: Card(
-                child: InkWell(
-                  onTap: () => onBuy(p.id),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.diamond, color: AppTheme.accent),
-                        Text('${p.gems}'),
-                        Text(p.price,
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 }
 
 class _CosmeticTile extends ConsumerWidget {
