@@ -8,6 +8,8 @@ set search_path = public, extensions, game;
 
 select pg_advisory_xact_lock(hashtext('game.market_tick'));
 update public.game_config set value = 'true' where key = 'markets_always_open';
+-- Never draw from the major pool in this test (we prune to one normal template).
+update public.game_config set value = '0' where key = 'major_event_share';
 
 select plan(4);
 

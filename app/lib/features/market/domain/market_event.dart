@@ -13,6 +13,7 @@ class MarketEvent {
     required this.sentiment,
     required this.startsAt,
     required this.endsAt,
+    required this.isMajor,
   });
 
   factory MarketEvent.fromJson(Map<String, dynamic> json) => MarketEvent(
@@ -25,6 +26,7 @@ class MarketEvent {
         sentiment: json['sentiment'] as String,
         startsAt: jsonDate(json['starts_at']),
         endsAt: jsonDate(json['ends_at']),
+        isMajor: (json['is_major'] as bool?) ?? false,
       );
 
   final String id;
@@ -36,6 +38,9 @@ class MarketEvent {
   final String sentiment; // positive | negative | neutral
   final DateTime startsAt;
   final DateTime endsAt;
+
+  /// A rare market-wide "major" event (war, pandemic, …) — surfaced as a banner.
+  final bool isMajor;
 
   bool get isLive => DateTime.now().isBefore(endsAt);
 }

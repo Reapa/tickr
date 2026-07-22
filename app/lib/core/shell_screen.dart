@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/leverage/data/leverage_repository.dart';
 import '../features/market/data/market_repository.dart';
+import '../features/market/domain/market_event.dart';
 import '../features/portfolio/data/portfolio_repository.dart';
 import '../features/portfolio/presentation/positions_bar.dart';
 import '../features/profile/data/profile_repository.dart';
@@ -155,6 +156,7 @@ class ShellScreen extends ConsumerWidget {
             Expanded(
               child: Column(
                 children: [
+                  const _MajorEventBanner(),
                   const _UpdateBanner(),
                   Expanded(child: shell),
                   const PositionsBar(),
@@ -180,6 +182,82 @@ class ShellScreen extends ConsumerWidget {
           for (final d in _destinations)
             NavigationDestination(icon: Icon(d.icon), label: d.label),
         ],
+      ),
+    );
+  }
+}
+
+/// A dramatic banner for a live, rare "major world event" (war, pandemic,
+/// central-bank shock…). Colour follows sentiment; tap for the full story.
+/// Invisible when no major event is live.
+class _MajorEventBanner extends ConsumerWidget {
+  const _MajorEventBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final major = (ref.watch(marketEventsProvider).value ?? const <MarketEvent>[])
+        .where((e) => e.isMajor && e.isLive)
+        .toList();
+    if (major.isEmpty) return const SizedBox.shrink();
+    final event = major.first; // newest first
+    final color = switch (event.sentiment) {
+      'positive' => AppTheme.up,
+      'negative' => AppTheme.down,
+      _ => AppTheme.gold,
+    };
+    return Material(
+      color: color.withValues(alpha: 0.16),
+      child: InkWell(
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Row(children: [
+              const Text('📰 ', style: TextStyle(fontSize: 20)),
+              Expanded(child: Text(event.headline)),
+            ]),
+            content: Text(event.body),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Got it')),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+            child: Row(
+              children: [
+                const Text('📰', style: TextStyle(fontSize: 17)),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text('MAJOR',
+                      style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 9,
+                          letterSpacing: 0.5,
+                          fontWeight: FontWeight.w900)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(event.headline,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 12.5)),
+                ),
+                Icon(Icons.chevron_right, size: 18, color: color),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -23,7 +23,8 @@ class MarketRepository {
       'description, current_price, spread, is_active, market_hours, '
       'listed_at, updated_at';
   static const _eventColumns =
-      'id, scope, asset_id, sector, headline, body, sentiment, starts_at, ends_at';
+      'id, scope, asset_id, sector, headline, body, sentiment, starts_at, '
+      'ends_at, is_major';
 
   Future<List<Asset>> fetchAssets() async {
     final rows = await _client
