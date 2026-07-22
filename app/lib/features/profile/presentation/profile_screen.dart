@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/brand.dart';
+import '../../../core/currency.dart';
+import '../../../core/currency_prefs.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
 import '../../market/data/market_repository.dart';
@@ -128,6 +130,17 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 Card(
                   child: ListTile(
+                    leading: const Icon(Icons.currency_exchange),
+                    title: const Text('Display currency'),
+                    subtitle: Text(
+                        '${ref.watch(currencyProvider).name} · shows all values '
+                        'in ${ref.watch(currencyProvider).code}'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _pickCurrency(context, ref),
+                  ),
+                ),
+                Card(
+                  child: ListTile(
                     leading: const Icon(Icons.new_releases_outlined),
                     title: const Text("What's new"),
                     subtitle: const Text('Recent updates and improvements'),
@@ -139,6 +152,51 @@ class ProfileScreen extends ConsumerWidget {
               ],
             ),
     );
+  }
+
+  Future<void> _pickCurrency(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(currencyProvider);
+    final selected = await showModalBottomSheet<Currency>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('Display currency',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                'Changes how values are shown everywhere. Your actual balances '
+                'and the market are unchanged — this is just the display unit.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+            for (final currency in kCurrencies)
+              ListTile(
+                leading: SizedBox(
+                  width: 32,
+                  child: Text(currency.symbol,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                ),
+                title: Text(currency.name),
+                subtitle: Text(currency.code),
+                trailing: currency.code == current.code
+                    ? const Icon(Icons.check, color: AppTheme.up)
+                    : null,
+                onTap: () => Navigator.pop(context, currency),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null) {
+      ref.read(currencyProvider.notifier).setCurrency(selected);
+    }
   }
 
   Future<void> _editName(

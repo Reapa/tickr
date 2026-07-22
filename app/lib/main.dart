@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/currency_prefs.dart';
 import 'core/env.dart';
 import 'core/prefs.dart';
 import 'core/router.dart';
@@ -64,11 +65,18 @@ class _TradingGameAppState extends ConsumerState<TradingGameApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Watching keeps Fmt.current in sync (set in the notifier) and re-keys the
+    // subtree below so every money label re-renders in the new currency.
+    final currency = ref.watch(currencyProvider);
     return MaterialApp.router(
       title: 'Tickr',
       theme: AppTheme.dark(),
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => KeyedSubtree(
+        key: ValueKey(currency.code),
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

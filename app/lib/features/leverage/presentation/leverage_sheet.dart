@@ -32,8 +32,15 @@ class LeverageSheet extends ConsumerStatefulWidget {
 class _LeverageSheetState extends ConsumerState<LeverageSheet> {
   var _side = 'long';
   var _leverage = 10;
-  final _margin = TextEditingController(text: '1000');
+  final _margin = TextEditingController();
   var _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Default stake ≈ $1000, shown in the player's display currency.
+    _margin.text = (1000 * Fmt.current.perUsd).toStringAsFixed(0);
+  }
 
   @override
   void dispose() {
@@ -41,7 +48,9 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
     super.dispose();
   }
 
-  double get _marginValue => double.tryParse(_margin.text) ?? 0;
+  /// The stake in USD — the field is typed in the display currency.
+  double get _marginValue =>
+      Fmt.toUsd(double.tryParse(_margin.text) ?? 0).toDouble();
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +117,7 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               labelText: 'Margin (your stake)',
-              prefixText: r'$ ',
+              prefixText: '${Fmt.symbol} ',
               helperText: 'Cash available: ${Fmt.money(cash)}',
               border: const OutlineInputBorder(),
             ),
@@ -122,8 +131,10 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
                 ActionChip(
                   label: Text('${(frac * 100).toInt()}%'),
                   visualDensity: VisualDensity.compact,
-                  onPressed: () => setState(() =>
-                      _margin.text = (cash * frac).floorToDouble().toString()),
+                  onPressed: () => setState(() => _margin.text =
+                      (cash * frac * Fmt.current.perUsd)
+                          .floorToDouble()
+                          .toString()),
                 ),
             ],
           ),

@@ -85,7 +85,8 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
 
   double? get _triggerPrice {
     final v = double.tryParse(_trigger.text);
-    return (v == null || v <= 0) ? null : v;
+    // Typed in the display currency; the engine prices everything in USD.
+    return (v == null || v <= 0) ? null : Fmt.toUsd(v).toDouble();
   }
 
   /// Price used to turn a dollar amount into a quantity: the target price for a
@@ -96,9 +97,11 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
   /// Quantity the order would use, floored to the server's 4-decimal limit so a
   /// dollar-derived amount can't be rejected as an "invalid quantity".
   double get _qty {
-    final p = _priceForQty;
+    final p = _priceForQty; // USD
     final raw = _byAmount
-        ? (p <= 0 ? 0 : (double.tryParse(_amount.text) ?? 0) / p)
+        // The amount is typed in the display currency; convert to USD before
+        // dividing by the USD fill price.
+        ? (p <= 0 ? 0 : Fmt.toUsd(double.tryParse(_amount.text) ?? 0) / p)
         : (double.tryParse(_quantity.text) ?? 0);
     return (raw * 10000).floorToDouble() / 10000;
   }
@@ -108,8 +111,11 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
     _quantity.text = v <= 0 ? '' : Fmt.quantity(v).replaceAll(',', '');
   }
 
-  void _setAmount(double dollars) {
-    _amount.text = dollars <= 0 ? '' : dollars.toStringAsFixed(2);
+  /// [usd] is a USD amount (e.g. a % of cash); shown in the display currency.
+  void _setAmount(double usd) {
+    final display = usd * Fmt.current.perUsd;
+    _amount.text =
+        display <= 0 ? '' : display.toStringAsFixed(Fmt.current.decimals);
   }
 
   @override
@@ -203,9 +209,9 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
           // Enter by units or by dollar value — dollar value is how you buy
           // fractional amounts of high-priced assets.
           SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Quantity')),
-              ButtonSegment(value: true, label: Text('Amount \$')),
+            segments: [
+              const ButtonSegment(value: false, label: Text('Quantity')),
+              ButtonSegment(value: true, label: Text('Amount ${Fmt.symbol}')),
             ],
             selected: {_byAmount},
             showSelectedIcon: false,
@@ -217,9 +223,9 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
                   controller: _amount,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Amount to spend',
-                    prefixText: '\$ ',
+                    prefixText: '${Fmt.symbol} ',
                   ),
                   onChanged: (_) => setState(() {}),
                 )
@@ -240,7 +246,7 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
                 labelText: _orderType == 'limit'
                     ? 'Buy when price falls to'
                     : 'Buy when price rises to',
-                prefixText: '\$ ',
+                prefixText: '${Fmt.symbol} ',
                 helperText: 'Now ${Fmt.price(ask)} · fills at the live price then',
               ),
               onChanged: (_) => setState(() {}),

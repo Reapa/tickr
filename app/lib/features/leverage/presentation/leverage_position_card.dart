@@ -189,12 +189,20 @@ class LeveragePositionCard extends ConsumerWidget {
 
   Future<void> _protect(
       BuildContext context, WidgetRef ref, double mark) async {
+    // Prices are USD internally but typed/shown in the display currency.
+    String disp(double usd) =>
+        (usd * Fmt.current.perUsd).toStringAsFixed(Fmt.current.decimals);
+    double? toUsdOrNull(String s) {
+      final v = double.tryParse(s);
+      return v == null ? null : Fmt.toUsd(v).toDouble();
+    }
+
     final tp = TextEditingController(
-        text: position.takeProfit?.toStringAsFixed(2) ??
-            (position.isLong ? (mark * 1.05) : (mark * 0.95)).toStringAsFixed(2));
+        text: disp(position.takeProfit ??
+            (position.isLong ? mark * 1.05 : mark * 0.95)));
     final sl = TextEditingController(
-        text: position.stopLoss?.toStringAsFixed(2) ??
-            (position.isLong ? (mark * 0.97) : (mark * 1.03)).toStringAsFixed(2));
+        text: disp(position.stopLoss ??
+            (position.isLong ? mark * 0.97 : mark * 1.03)));
     final trail = TextEditingController(text: '5');
     var useTrailing = false;
     final messenger = ScaffoldMessenger.of(context);
@@ -210,8 +218,9 @@ class LeveragePositionCard extends ConsumerWidget {
                 controller: tp,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                    labelText: 'Take profit price', prefixText: r'$ '),
+                decoration: InputDecoration(
+                    labelText: 'Take profit price',
+                    prefixText: '${Fmt.symbol} '),
               ),
               const SizedBox(height: 8),
               Row(
@@ -241,7 +250,7 @@ class LeveragePositionCard extends ConsumerWidget {
                           const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
                         labelText: 'Stop loss price',
-                        prefixText: r'$ ',
+                        prefixText: '${Fmt.symbol} ',
                         helperText:
                             'Must stay inside liq ${Fmt.money(position.liquidationPrice)}',
                       ),
@@ -273,8 +282,8 @@ class LeveragePositionCard extends ConsumerWidget {
       } else {
         result = await repo.setProtection(
           positionId: position.id,
-          takeProfit: double.tryParse(tp.text),
-          stopLoss: double.tryParse(sl.text),
+          takeProfit: toUsdOrNull(tp.text),
+          stopLoss: toUsdOrNull(sl.text),
         );
       }
       messenger.showSnackBar(SnackBar(

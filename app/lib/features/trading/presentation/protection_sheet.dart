@@ -52,16 +52,22 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
     super.dispose();
   }
 
+  // Percent mode needs no conversion; a fixed price is typed in the display
+  // currency, so convert it back to the USD the engine uses.
   double? get _tpPrice {
     final v = double.tryParse(_tp.text);
     if (v == null || v <= 0) return null;
-    return _tpPercent ? widget.asset.currentPrice * (1 + v / 100) : v;
+    return _tpPercent
+        ? widget.asset.currentPrice * (1 + v / 100)
+        : Fmt.toUsd(v).toDouble();
   }
 
   double? get _slPrice {
     final v = double.tryParse(_sl.text);
     if (v == null || v <= 0) return null;
-    return _slPercent ? widget.asset.currentPrice * (1 - v / 100) : v;
+    return _slPercent
+        ? widget.asset.currentPrice * (1 - v / 100)
+        : Fmt.toUsd(v).toDouble();
   }
 
   @override
@@ -193,7 +199,8 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
       // A trailing stop is a separate call (it replaces any fixed stop-loss).
       if (trailing) {
         final raw = double.tryParse(_sl.text) ?? 0;
-        final trail = _slPercent ? raw / 100 : raw;
+        // In $ mode the trail is a price distance typed in the display currency.
+        final trail = _slPercent ? raw / 100 : Fmt.toUsd(raw).toDouble();
         final result = await repo.setTrailingStop(
             assetId: assetId, trail: trail, isPercent: _slPercent);
         if (result['status'] != 'protected') {
@@ -201,7 +208,7 @@ class _ProtectionSheetState extends ConsumerState<ProtectionSheet> {
           return;
         }
         labels.add('🛡 Trailing SL '
-            '${_slPercent ? '${raw.toStringAsFixed(0)}%' : Fmt.money(raw)}');
+            '${_slPercent ? '${raw.toStringAsFixed(0)}%' : '${Fmt.symbol}${raw.toStringAsFixed(Fmt.current.decimals)}'}');
       }
       ref.invalidate(openOrdersProvider);
       ref.invalidate(missionsProvider);
@@ -268,9 +275,10 @@ class _TriggerEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final trailVal = double.tryParse(controller.text) ?? 0;
     // A trailing stop starts a distance below the current price, then follows.
+    // In $ mode the distance is typed in the display currency → convert to USD.
     final trailStart = isPercent
         ? asset.currentPrice * (1 - trailVal / 100)
-        : asset.currentPrice - trailVal;
+        : asset.currentPrice - Fmt.toUsd(trailVal);
     final pnlAtTrigger = resultPrice == null
         ? null
         : holding.quantity * (resultPrice! - holding.avgCost);
@@ -286,9 +294,9 @@ class _TriggerEditor extends StatelessWidget {
                     TextStyle(color: color, fontWeight: FontWeight.w700)),
             const Spacer(),
             SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('%')),
-                ButtonSegment(value: false, label: Text(r'$')),
+              segments: [
+                const ButtonSegment(value: true, label: Text('%')),
+                ButtonSegment(value: false, label: Text(Fmt.symbol)),
               ],
               selected: {isPercent},
               onSelectionChanged: (s) => onMode(s.first),
@@ -313,8 +321,9 @@ class _TriggerEditor extends StatelessWidget {
             ),
           Text(
               trailing
-                  ? 'Sets the stop $trailVal${isPercent ? '%' : r'$'} below the '
-                      'peak; it ratchets up as the price rises to lock in gains.'
+                  ? 'Sets the stop ${isPercent ? '$trailVal%' : '${Fmt.symbol}$trailVal'} '
+                      'below the peak; it ratchets up as the price rises to lock '
+                      'in gains.'
                   : hint,
               style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 8),
@@ -328,7 +337,7 @@ class _TriggerEditor extends StatelessWidget {
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     isDense: true,
-                    prefixText: isPercent ? null : r'$ ',
+                    prefixText: isPercent ? null : '${Fmt.symbol} ',
                     suffixText: isPercent ? '%' : null,
                     border: const OutlineInputBorder(),
                   ),
