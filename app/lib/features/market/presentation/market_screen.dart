@@ -437,6 +437,7 @@ class _AssetTile extends ConsumerWidget {
                 children: [
                   PriceFlash(
                     price: asset.currentPrice,
+                    raw: asset.isForex,
                     style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 15,

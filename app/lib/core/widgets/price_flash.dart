@@ -6,10 +6,14 @@ import '../theme.dart';
 /// Money text that flashes green/red when the value ticks up/down, then
 /// fades back — the classic trading-terminal pulse.
 class PriceFlash extends StatefulWidget {
-  const PriceFlash({super.key, required this.price, this.style});
+  const PriceFlash(
+      {super.key, required this.price, this.style, this.raw = false});
 
   final double price;
   final TextStyle? style;
+
+  /// Show the raw quote (forex ratio) instead of currency-converted money.
+  final bool raw;
 
   @override
   State<PriceFlash> createState() => _PriceFlashState();
@@ -47,7 +51,7 @@ class _PriceFlashState extends State<PriceFlash>
     return AnimatedBuilder(
       animation: _fade,
       builder: (context, _) => Text(
-        Fmt.money(widget.price),
+        widget.raw ? Fmt.quote(widget.price) : Fmt.money(widget.price),
         style: base.copyWith(
           color: Color.lerp(base.color, _flashColor, _fade.value),
         ),

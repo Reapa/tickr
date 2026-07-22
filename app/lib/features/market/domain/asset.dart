@@ -43,6 +43,10 @@ class Asset {
   /// '24_7' (crypto), '24_5' (forex), or 'weekday_day' (stocks / real estate).
   final String marketHours;
 
+  /// Forex pairs quote a ratio between two currencies, so their price must not
+  /// be re-denominated by the player's display currency.
+  bool get isForex => classId == 'forex';
+
   /// Price a market buy would fill at right now (server adds half spread).
   double get askPrice => currentPrice * (1 + spread / 2);
 

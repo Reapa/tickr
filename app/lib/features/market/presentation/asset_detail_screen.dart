@@ -74,6 +74,7 @@ class AssetDetailScreen extends ConsumerWidget {
               children: [
                 PriceFlash(
                   price: asset.currentPrice,
+                  raw: asset.isForex,
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(width: 12),
@@ -94,8 +95,16 @@ class AssetDetailScreen extends ConsumerWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 _Stat(label: 'Sector', value: asset.sector.toUpperCase()),
-                _Stat(label: 'Ask', value: Fmt.money(asset.askPrice)),
-                _Stat(label: 'Bid', value: Fmt.money(asset.bidPrice)),
+                _Stat(
+                    label: 'Ask',
+                    value: asset.isForex
+                        ? Fmt.quote(asset.askPrice)
+                        : Fmt.money(asset.askPrice)),
+                _Stat(
+                    label: 'Bid',
+                    value: asset.isForex
+                        ? Fmt.quote(asset.bidPrice)
+                        : Fmt.money(asset.bidPrice)),
                 _Stat(
                     label: 'Spread',
                     value: '${(asset.spread * 100).toStringAsFixed(2)}%'),

@@ -41,6 +41,15 @@ abstract final class Fmt {
 
   static String quantity(num value) => _qty.format(value);
 
+  /// A forex quote (e.g. EUR/USD, USD/ZAR) — a ratio between two currencies, so
+  /// it is NEVER currency-converted and carries no money symbol. Adaptive
+  /// decimals keep small ratios legible.
+  static String quote(num value) {
+    final a = value.abs();
+    final d = a >= 100 ? 2 : (a >= 1 ? 4 : 5);
+    return NumberFormat('#,##0.${'0' * d}').format(value);
+  }
+
   /// Number of decimal places that keeps a price meaningful at its magnitude —
   /// so slow movers (a $12 stock, a $0.85 forex pair) don't collapse to whole
   /// numbers that hide every tick of movement. Judged on the *converted* value

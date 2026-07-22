@@ -358,7 +358,8 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                               TextSpan(children: [
                                 TextSpan(text: k, style: label),
                                 TextSpan(
-                                    text: '${Fmt.price(v)}${last ? '' : '\n'}',
+                                    text:
+                                        '${widget.asset.isForex ? Fmt.quote(v) : Fmt.price(v)}${last ? '' : '\n'}',
                                     style: val),
                               ]);
                           return CandlestickTooltipItem('',
@@ -436,7 +437,10 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                           reservedSize: 56,
                           getTitlesWidget: (value, meta) => Padding(
                             padding: const EdgeInsets.only(left: 4),
-                            child: Text(Fmt.priceAxis(value),
+                            child: Text(
+                                widget.asset.isForex
+                                    ? Fmt.quote(value)
+                                    : Fmt.priceAxis(value),
                                 style: const TextStyle(fontSize: 10)),
                           ),
                         ),
@@ -659,7 +663,7 @@ class _LineMode extends ConsumerWidget {
               getTooltipItems: (touched) => [
                 for (final spot in touched)
                   LineTooltipItem(
-                    Fmt.price(spot.y),
+                    asset.isForex ? Fmt.quote(spot.y) : Fmt.price(spot.y),
                     const TextStyle(fontWeight: FontWeight.w600),
                   ),
               ],
