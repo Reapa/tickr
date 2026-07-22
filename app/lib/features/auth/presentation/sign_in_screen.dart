@@ -128,13 +128,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     icon: const Icon(Icons.g_mobiledata, size: 28),
                     label: const Text('Continue with Google'),
                   ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed:
-                        _busy ? null : () => _run(auth.signInWithFacebook),
-                    icon: const Icon(Icons.facebook),
-                    label: const Text('Continue with Facebook'),
-                  ),
                 ],
               ),
             ),
