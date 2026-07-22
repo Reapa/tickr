@@ -333,3 +333,17 @@ insert into public.seasons (number, name, starts_at, ends_at, reward_cosmetic_co
 values (1, 'Season 1: Opening Bell', now(),
         now() + make_interval(days => (select (value #>> '{}')::int from public.game_config where key = 'season_length_days')),
         'frame_season_1');
+
+-- ----------------------------------------------------------------------------
+-- Livelier-market volatility scaling (migration 33). The migration applies this
+-- on the hosted DB (assets already exist there); on a from-scratch reset the
+-- migration runs before seed inserts these rows, so it no-ops and we apply the
+-- same scaling here instead. Only one path ever scales — no double-apply.
+-- ----------------------------------------------------------------------------
+update public.assets set base_volatility = round((base_volatility *
+  case class_id when 'stocks'      then 3.5
+                when 'companies'   then 5.0
+                when 'crypto'      then 1.6
+                when 'real_estate' then 2.5
+                when 'forex'       then 1.5
+                else 1.0 end)::numeric, 4);
