@@ -502,10 +502,17 @@ class _HoldingTile extends ConsumerWidget {
       ref.invalidate(recentOrdersProvider);
       ref.invalidate(ledgerProvider);
       ref.invalidate(missionsProvider);
+      final pnl = receipt.realizedPnl;
       messenger.showSnackBar(SnackBar(
         content: Text(receipt.isFilled
-            ? 'Closed ${a.symbol}: +${Fmt.money(receipt.notional ?? 0)}'
+            ? (pnl != null
+                ? 'Closed ${a.symbol} · ${pnl >= 0 ? 'profit' : 'loss'} '
+                    '${pnl >= 0 ? '+' : ''}${Fmt.money(pnl)}'
+                : 'Closed ${a.symbol}')
             : 'Close failed: ${receipt.reason}'),
+        backgroundColor: receipt.isFilled && pnl != null
+            ? AppTheme.changeColor(pnl).withValues(alpha: 0.9)
+            : null,
       ));
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text('$error')));
@@ -573,7 +580,43 @@ class _RecentOrders extends ConsumerWidget {
               '${order.rejectReason != null ? ' (${order.rejectReason})' : ''}',
             ),
             subtitle: Text(Fmt.timeAgo(order.createdAt)),
+            trailing: order.isRealizedClose
+                ? _RealizedPnl(order: order)
+                : null,
           ),
+      ],
+    );
+  }
+}
+
+/// The realized profit/loss on a closed sell — the number a player misses when
+/// a stop-loss or take-profit fires while they're away.
+class _RealizedPnl extends StatelessWidget {
+  const _RealizedPnl({required this.order});
+
+  final OrderRow order;
+
+  @override
+  Widget build(BuildContext context) {
+    final pnl = order.realizedPnl ?? 0;
+    final ret = order.realizedReturn;
+    final color = AppTheme.changeColor(pnl);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          '${pnl >= 0 ? '+' : ''}${Fmt.money(pnl)}',
+          style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              color: color,
+              fontFeatures: const [FontFeature.tabularFigures()]),
+        ),
+        Text(
+          ret == null ? 'realized' : '${pnl >= 0 ? '+' : ''}${Fmt.pct(ret)}',
+          style: TextStyle(fontSize: 10.5, color: color.withValues(alpha: 0.8)),
+        ),
       ],
     );
   }

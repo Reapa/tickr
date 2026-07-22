@@ -13,6 +13,7 @@ class OrderReceipt {
     this.price,
     this.quantity,
     this.notional,
+    this.realizedPnl,
   });
 
   factory OrderReceipt.fromJson(Map<String, dynamic> json) => OrderReceipt(
@@ -23,6 +24,9 @@ class OrderReceipt {
             json['quantity'] == null ? null : jsonDouble(json['quantity']),
         notional:
             json['notional'] == null ? null : jsonDouble(json['notional']),
+        realizedPnl: json['realized_pnl'] == null
+            ? null
+            : jsonDouble(json['realized_pnl']),
       );
 
   final String status; // filled | rejected | unlocked
@@ -30,6 +34,9 @@ class OrderReceipt {
   final double? price;
   final double? quantity;
   final double? notional;
+
+  /// Cash profit (+) / loss (−) locked in when this order closed a position.
+  final double? realizedPnl;
 
   bool get isFilled => status == 'filled';
 }

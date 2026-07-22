@@ -11,6 +11,23 @@
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
+-- Reset-safety: this migration (and 000010) inserts event_templates whose
+-- class_id references asset_classes, but the classes live in seed.sql, which
+-- `supabase db reset` only runs AFTER all migrations. Seed the classes here
+-- idempotently so a from-scratch reset succeeds. On the hosted DB (already
+-- migrated) this never re-runs, so it is a no-op there. Seed.sql now upserts
+-- the same rows with `on conflict do nothing`, keeping a single source of truth.
+-- ----------------------------------------------------------------------------
+insert into public.asset_classes (id, name, description, unlock_cost, is_enabled, sort_order) values
+  ('stocks',      'Stocks',      'Shares in fictional companies across five sectors. Free to trade from day one.', 0, true, 1),
+  ('real_estate', 'Real Estate', 'Property funds: slower-moving, steadier income-style assets. Buy your way in.', 50000, true, 2),
+  ('companies',   'Companies',   'Own entire private companies. Coming soon.', 250000, false, 3),
+  ('margin',      'Broker License', 'Trade with leverage: control 5-100x your stake, long or short. High risk, high reward — you can lose your whole margin.', 25000, true, 4),
+  ('crypto',      'Crypto',      'The 24/7 casino: wildly volatile coins that never stop trading. Weekends belong to crypto.', 2500, true, 5),
+  ('forex',       'Forex',       'Currency pairs: tiny moves, huge liquidity, open 24/5. Where leverage earns its keep.', 10000, true, 6)
+on conflict (id) do nothing;
+
+-- ----------------------------------------------------------------------------
 -- Tiny mustache-style renderer: replace every {key} with p_vars->>key.
 -- ----------------------------------------------------------------------------
 create or replace function game.render_template(p_tpl text, p_vars jsonb)

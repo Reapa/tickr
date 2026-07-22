@@ -275,6 +275,7 @@ class ActivityItem {
     required this.side,
     required this.notional,
     required this.leverage,
+    this.realizedPnl,
   });
 
   factory ActivityItem.fromJson(Map<String, dynamic> json) => ActivityItem(
@@ -285,6 +286,9 @@ class ActivityItem {
         side: json['side'] as String,
         notional: jsonDouble(json['notional']),
         leverage: json['leverage'] == null ? null : jsonInt(json['leverage']),
+        realizedPnl: json['realized_pnl'] == null
+            ? null
+            : jsonDouble(json['realized_pnl']),
       );
 
   final DateTime at;
@@ -295,8 +299,12 @@ class ActivityItem {
   final double notional;
   final int? leverage;
 
+  /// Cash profit (+) / loss (−) if this activity closed a spot position.
+  final double? realizedPnl;
+
   bool get isLeverage => kind == 'leverage';
   bool get isBuySide => side == 'buy' || side == 'long';
+  bool get isRealizedClose => !isLeverage && side == 'sell' && realizedPnl != null;
 }
 
 final competitionRepositoryProvider = Provider<CompetitionRepository>(

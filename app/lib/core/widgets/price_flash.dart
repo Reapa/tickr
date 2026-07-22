@@ -48,12 +48,18 @@ class _PriceFlashState extends State<PriceFlash>
   @override
   Widget build(BuildContext context) {
     final base = widget.style ?? DefaultTextStyle.of(context).style;
+    // The resting colour must be concrete: if we lerp from a null colour the
+    // text fades to fully transparent, so the price "flashes and disappears".
+    // Instead the price stays visible in [restColor] and only flashes
+    // green/red on a tick, easing back to rest.
+    final restColor =
+        base.color ?? DefaultTextStyle.of(context).style.color ?? Colors.white;
     return AnimatedBuilder(
       animation: _fade,
       builder: (context, _) => Text(
         widget.raw ? Fmt.quote(widget.price) : Fmt.money(widget.price),
         style: base.copyWith(
-          color: Color.lerp(base.color, _flashColor, _fade.value),
+          color: Color.lerp(restColor, _flashColor, _fade.value),
         ),
       ),
     );

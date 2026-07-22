@@ -301,8 +301,14 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final chartWidth = constraints.maxWidth - 56; // minus price axis
-          final bodyWidth =
-              (chartWidth / window.length * 0.62).clamp(2.0, 16.0);
+          final candlePx = (chartWidth / window.length).clamp(1.0, 1e9);
+          final bodyWidth = (candlePx * 0.62).clamp(2.0, 16.0);
+          // Hold the newest candle a fixed pixel gap clear of the price axis so
+          // the price labels and the draggable SL/TP handle never sit on top of
+          // it. Expressed in candle units (gap ÷ candle width) so it stays the
+          // same width in pixels at every zoom level.
+          const rightGapPx = 44.0;
+          final maxX = (window.length - 1) + rightGapPx / candlePx;
           final tip = (_touchedIndex != null && _touchedIndex! < spots.length)
               ? [_touchedIndex!]
               : const <int>[];
@@ -339,6 +345,8 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                 child: CandlestickChart(
                   CandlestickChartData(
                     candlestickSpots: spots,
+                    minX: 0,
+                    maxX: maxX,
                     minY: minY,
                     maxY: maxY,
                     showingTooltipIndicators: tip,

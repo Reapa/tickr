@@ -12,7 +12,8 @@ insert into public.asset_classes (id, name, description, unlock_cost, is_enabled
   ('companies',   'Companies',   'Own entire private companies. Coming soon.', 250000, false, 3),
   ('margin',      'Broker License', 'Trade with leverage: control 5-100x your stake, long or short. High risk, high reward — you can lose your whole margin.', 25000, true, 4),
   ('crypto',      'Crypto',      'The 24/7 casino: wildly volatile coins that never stop trading. Weekends belong to crypto.', 2500, true, 5),
-  ('forex',       'Forex',       'Currency pairs: tiny moves, huge liquidity, open 24/5. Where leverage earns its keep.', 10000, true, 6);
+  ('forex',       'Forex',       'Currency pairs: tiny moves, huge liquidity, open 24/5. Where leverage earns its keep.', 10000, true, 6)
+on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
 -- Stocks: 16 across 5 sectors. Volatility/liquidity tuned per personality:
@@ -89,7 +90,8 @@ insert into public.assets
   ('AUDUSD', 'Aussie vs Dollar', 'forex', 'forex', 'Rides commodity booms and busts.',          0.6550, 0.6550, 0.00, 0.11, 400000, 0.015, 0.40, 0.0003, '24_5'),
   ('USDZAR', 'Dollar vs Rand',   'forex', 'forex', 'Emerging-market rand: high carry, high drama.', 18.5000, 18.5000, 0.00, 0.14, 300000, 0.012, 0.40, 0.0006, '24_5'),
   ('USDCAD', 'Dollar vs Loonie', 'forex', 'forex', 'Tracks oil and the neighbour up north.',         1.3600,  1.3600, 0.00, 0.09, 500000, 0.010, 0.40, 0.0003, '24_5'),
-  ('USDINR', 'Dollar vs Rupee',  'forex', 'forex', 'A managed float with a steady upward drift.',    83.5000, 83.5000, 0.00, 0.10, 350000, 0.012, 0.40, 0.0005, '24_5');
+  ('USDINR', 'Dollar vs Rupee',  'forex', 'forex', 'A managed float with a steady upward drift.',    83.5000, 83.5000, 0.00, 0.10, 350000, 0.012, 0.40, 0.0005, '24_5')
+on conflict (symbol) do nothing;
 
 -- ----------------------------------------------------------------------------
 -- Event templates: the news generator. Weights skew toward mild sector/asset
@@ -150,7 +152,8 @@ insert into public.event_templates
    -0.15, -0.05, 1.8, 1200, 0.8, 'crypto'),
   ('rate_decision',  'sector', 'Central banks jolt currency markets',
    'A surprise rate decision ripples through the major pairs.',
-   -0.02, 0.02, 1.6, 1200, 1, 'forex');
+   -0.02, 0.02, 1.6, 1200, 1, 'forex')
+on conflict (code) do nothing;
 
 -- Extended news library (company events, macro, crypto, forex, real estate).
 -- Reference/content data, so it lives in the seed alongside the asset classes
@@ -277,7 +280,8 @@ insert into public.event_templates
    -0.025, 0.025, 1.4, 1000, 1, 'forex'),
   ('intervention',   'asset', 'Central bank intervenes to defend {name}',
    'Officials step into the market. {symbol} whipsaws.',
-   -0.03, 0.03, 1.8, 1200, 0.8, 'forex');
+   -0.03, 0.03, 1.8, 1200, 0.8, 'forex')
+on conflict (code) do nothing;
 
 -- ----------------------------------------------------------------------------
 -- Missions: the educational layer. Each teaches one concept by doing.
@@ -303,7 +307,8 @@ insert into public.missions (code, title, description, concept, reward_cash, rew
    'risk', 500, 100, '{}', 6),
   ('use_leverage',  'Play With Fire',
    'Open a leveraged position. Leverage multiplies gains AND losses — respect the liquidation price.',
-   'risk', 500, 100, '{}', 7);
+   'risk', 500, 100, '{}', 7)
+on conflict (code) do nothing;
 
 -- ----------------------------------------------------------------------------
 -- Cosmetics: strictly visual. price_premium NULL = season-reward only.
@@ -318,7 +323,8 @@ insert into public.cosmetics (code, name, description, slot, rarity, price_premi
   ('chart_neon',     'Neon Chart Theme',    'Trade like it''s a cyberpunk arcade.',           'chart_theme',  'rare',      300, false),
   ('chart_paper',    'Newspaper Chart Theme','Charts styled like an old broadsheet.',         'chart_theme',  'rare',      300, false),
   ('ticker_retro',   'Retro Ticker Skin',   'Green phosphor glow, like the old days.',        'ticker_skin',  'common',    200, false),
-  ('frame_season_1', 'Season 1 Champion Frame', 'Awarded to Season 1 top finishers. Cannot be bought.', 'avatar_frame', 'legendary', null, true);
+  ('frame_season_1', 'Season 1 Champion Frame', 'Awarded to Season 1 top finishers. Cannot be bought.', 'avatar_frame', 'legendary', null, true)
+on conflict (code) do nothing;
 
 -- ----------------------------------------------------------------------------
 -- Season 1 starts now.

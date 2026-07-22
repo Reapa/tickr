@@ -110,12 +110,30 @@ class _ActivityRow extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w700, color: color)),
       ])),
       subtitle: Text(Fmt.timeAgo(item.at)),
-      trailing: Text(
-        Fmt.moneyCompact(item.notional),
-        style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontFeatures: [FontFeature.tabularFigures()]),
-      ),
+      trailing: item.isRealizedClose
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${item.realizedPnl! >= 0 ? '+' : ''}'
+                  '${Fmt.moneyCompact(item.realizedPnl!)}',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.changeColor(item.realizedPnl!),
+                      fontFeatures: const [FontFeature.tabularFigures()]),
+                ),
+                Text(item.realizedPnl! >= 0 ? 'profit' : 'loss',
+                    style:
+                        TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+              ],
+            )
+          : Text(
+              Fmt.moneyCompact(item.notional),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: [FontFeature.tabularFigures()]),
+            ),
     );
   }
 }

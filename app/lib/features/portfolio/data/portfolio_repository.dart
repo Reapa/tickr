@@ -28,6 +28,8 @@ class OrderRow {
     required this.status,
     required this.rejectReason,
     required this.createdAt,
+    this.realizedPnl,
+    this.closeAvgCost,
   });
 
   factory OrderRow.fromJson(Map<String, dynamic> json) => OrderRow(
@@ -37,6 +39,12 @@ class OrderRow {
         status: json['status'] as String,
         rejectReason: json['reject_reason'] as String?,
         createdAt: jsonDate(json['created_at']),
+        realizedPnl: json['realized_pnl'] == null
+            ? null
+            : jsonDouble(json['realized_pnl']),
+        closeAvgCost: json['close_avg_cost'] == null
+            ? null
+            : jsonDouble(json['close_avg_cost']),
       );
 
   final String assetId;
@@ -45,6 +53,24 @@ class OrderRow {
   final String status;
   final String? rejectReason;
   final DateTime createdAt;
+
+  /// Cash profit (+) or loss (−) locked in by a closing sell. Null for buys,
+  /// rejections, and pending orders.
+  final double? realizedPnl;
+
+  /// The position's average cost per unit at close — lets us show a return %.
+  final double? closeAvgCost;
+
+  bool get isRealizedClose =>
+      side == 'sell' && status == 'filled' && realizedPnl != null;
+
+  /// Return on the closed lot: pnl / cost basis. Null when cost basis is absent.
+  double? get realizedReturn {
+    final pnl = realizedPnl;
+    final avg = closeAvgCost;
+    if (pnl == null || avg == null || avg * quantity == 0) return null;
+    return pnl / (avg * quantity);
+  }
 }
 
 /// A pending trigger order. On the sell side these are protection:
@@ -173,7 +199,8 @@ class PortfolioRepository {
   Future<List<OrderRow>> fetchRecentOrders({int limit = 20}) async {
     final rows = await _client
         .from('orders')
-        .select('asset_id, side, quantity, status, reject_reason, created_at')
+        .select('asset_id, side, quantity, status, reject_reason, created_at, '
+            'realized_pnl, close_avg_cost')
         .order('created_at', ascending: false)
         .limit(limit);
     return rows.map(OrderRow.fromJson).toList();
