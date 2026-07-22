@@ -7,6 +7,10 @@ import 'core/env.dart';
 import 'core/prefs.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'features/leverage/data/leverage_repository.dart';
+import 'features/market/data/market_repository.dart';
+import 'features/portfolio/data/portfolio_repository.dart';
+import 'features/profile/data/profile_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,11 +26,44 @@ Future<void> main() async {
   ));
 }
 
-class TradingGameApp extends ConsumerWidget {
+class TradingGameApp extends ConsumerStatefulWidget {
   const TradingGameApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TradingGameApp> createState() => _TradingGameAppState();
+}
+
+class _TradingGameAppState extends ConsumerState<TradingGameApp> {
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _resyncLiveData);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  /// Mobile browsers suspend the Realtime WebSocket when the tab is
+  /// backgrounded or the phone locks, and postgres_changes never replays the
+  /// gap — so live streams (news, prices, holdings, orders, positions, profile)
+  /// could freeze until a manual refresh. Rebuilding them on resume makes
+  /// returning to the app behave like that refresh.
+  void _resyncLiveData() {
+    ref.invalidate(marketEventsProvider);
+    ref.invalidate(assetsProvider);
+    ref.invalidate(holdingsProvider);
+    ref.invalidate(openOrdersProvider);
+    ref.invalidate(leveragedPositionsProvider);
+    ref.invalidate(myProfileProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'Tickr',
       theme: AppTheme.dark(),

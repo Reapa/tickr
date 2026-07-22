@@ -162,11 +162,25 @@ class MarketRepository {
     return controller.stream;
   }
 
-  /// News feed that stays current: initial fetch + live event inserts.
+  /// News feed that stays current: initial fetch + live event inserts, with a
+  /// periodic re-fetch as a backstop. Realtime alone can silently stall on
+  /// mobile (a backgrounded tab or a locked phone suspends the WebSocket, and
+  /// postgres_changes never replays the gap), which froze the feed until a
+  /// manual refresh; the 30s resync guarantees it self-heals.
   Stream<List<MarketEvent>> watchEvents({int limit = 50}) {
     final controller = StreamController<List<MarketEvent>>();
     var events = <MarketEvent>[];
     RealtimeChannel? channel;
+    Timer? resync;
+
+    Future<void> refetch() async {
+      try {
+        events = await fetchEvents(limit: limit);
+        controller.add(events);
+      } catch (_) {
+        // Transient failure (e.g. offline); the next resync will reconcile.
+      }
+    }
 
     controller.onListen = () async {
       try {
@@ -195,8 +209,10 @@ class MarketRepository {
             },
           )
           .subscribe();
+      resync = Timer.periodic(const Duration(seconds: 30), (_) => refetch());
     };
     controller.onCancel = () {
+      resync?.cancel();
       if (channel != null) _client.removeChannel(channel!);
     };
     return controller.stream;
