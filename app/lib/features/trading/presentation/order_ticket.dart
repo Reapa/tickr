@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/education.dart';
+import '../../../core/feedback.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/concept_chip.dart';
@@ -398,6 +399,14 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
         ref.invalidate(missionsProvider);
         ref.invalidate(recentOrdersProvider);
         ref.invalidate(ledgerProvider);
+        // Fire feedback before popping — the celebration lives in the root
+        // overlay, so it survives the sheet closing.
+        if (_isBuy) {
+          Juice.fill(ref);
+        } else if (mounted) {
+          Juice.close(context, ref,
+              pnl: receipt.realizedPnl ?? 0, symbol: widget.asset.symbol);
+        }
         navigator.pop();
         messenger.showSnackBar(SnackBar(
           content: Text(

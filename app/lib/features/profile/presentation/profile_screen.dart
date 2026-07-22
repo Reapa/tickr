@@ -6,6 +6,7 @@ import '../../../core/brand.dart';
 import '../../../core/cosmetics.dart';
 import '../../../core/currency.dart';
 import '../../../core/currency_prefs.dart';
+import '../../../core/feedback.dart';
 import '../../../core/tutorial.dart';
 import '../../../core/widgets/trader_avatar.dart';
 import '../../../core/format.dart';
@@ -157,6 +158,17 @@ class ProfileScreen extends ConsumerWidget {
                         'Coaching: ${ref.watch(tutorialProvider).skillLevel?.label ?? 'not set'}'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _tutorialSettings(context, ref),
+                  ),
+                ),
+                Card(
+                  child: SwitchListTile(
+                    secondary: const Icon(Icons.celebration_outlined),
+                    title: const Text('Celebrations & haptics'),
+                    subtitle: const Text(
+                        'Win celebrations and vibration feedback on fills'),
+                    value: ref.watch(feedbackEnabledProvider),
+                    onChanged: (v) =>
+                        ref.read(feedbackEnabledProvider.notifier).set(v),
                   ),
                 ),
                 Card(

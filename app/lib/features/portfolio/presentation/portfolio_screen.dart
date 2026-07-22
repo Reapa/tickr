@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/education.dart';
 import '../../../core/brand.dart';
+import '../../../core/feedback.dart';
 import '../../../core/format.dart';
 import '../../../core/sector_colors.dart';
 import '../../../core/theme.dart';
@@ -503,6 +504,9 @@ class _HoldingTile extends ConsumerWidget {
       ref.invalidate(ledgerProvider);
       ref.invalidate(missionsProvider);
       final pnl = receipt.realizedPnl;
+      if (receipt.isFilled && pnl != null && context.mounted) {
+        Juice.close(context, ref, pnl: pnl, symbol: a.symbol);
+      }
       messenger.showSnackBar(SnackBar(
         content: Text(receipt.isFilled
             ? (pnl != null

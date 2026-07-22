@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -12,6 +13,7 @@ import '../features/profile/presentation/daily_reward_dialog.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 import '../features/trading/data/trigger_alerts.dart';
 import 'app_update.dart';
+import 'feedback.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'tutorial.dart';
@@ -36,16 +38,24 @@ class ShellScreen extends ConsumerWidget {
           'position';
       ref.invalidate(openOrdersProvider);
       ref.invalidate(recentOrdersProvider);
+      final pnl = fill.realizedPnl;
+      final pnlText = pnl == null
+          ? ''
+          : ' (${pnl >= 0 ? '+' : ''}${Fmt.money(pnl)})';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: fill.isTakeProfit ? AppTheme.up : AppTheme.down,
         content: Text(
           fill.isTakeProfit
-              ? '🎯 Take profit hit — sold ${Fmt.quantity(fill.quantity)} $symbol'
-              : '🛡 Stop loss triggered — sold ${Fmt.quantity(fill.quantity)} $symbol',
+              ? '🎯 Take profit hit — sold ${Fmt.quantity(fill.quantity)} $symbol$pnlText'
+              : '🛡 Stop loss triggered — sold ${Fmt.quantity(fill.quantity)} $symbol$pnlText',
           style: const TextStyle(
               color: Colors.black, fontWeight: FontWeight.w600),
         ),
       ));
+      Juice.close(context, ref,
+          pnl: pnl ?? 0,
+          symbol: symbol,
+          headline: fill.isTakeProfit ? 'Take profit!' : null);
     });
   }
 
@@ -88,6 +98,10 @@ class ShellScreen extends ConsumerWidget {
             style: const TextStyle(
                 color: Colors.black, fontWeight: FontWeight.w600)),
       ));
+      Juice.close(context, ref,
+          pnl: close.realizedPnl,
+          symbol: symbol,
+          headline: close.closeReason == 'take_profit' ? 'Sharp trade!' : null);
     });
   }
 
@@ -97,6 +111,7 @@ class ShellScreen extends ConsumerWidget {
       final after = next.value?.level;
       // Only celebrate a genuine increase (skip first load / sign-in).
       if (before != null && after != null && after > before) {
+        if (ref.read(feedbackEnabledProvider)) HapticFeedback.heavyImpact();
         showCelebration(
           context,
           title: 'Level $after!',
@@ -170,6 +185,7 @@ class ShellScreen extends ConsumerWidget {
     return Scaffold(
       body: Column(
         children: [
+          const _MajorEventBanner(),
           const _UpdateBanner(),
           Expanded(child: shell),
           const PositionsBar(),

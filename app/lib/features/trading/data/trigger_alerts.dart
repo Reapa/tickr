@@ -12,11 +12,15 @@ class TriggerFill {
     required this.assetId,
     required this.orderType,
     required this.quantity,
+    this.realizedPnl,
   });
 
   final String assetId;
   final String orderType; // limit = TP, stop = SL
   final double quantity;
+
+  /// Cash profit (+) / loss (−) the fill locked in (from the orders row).
+  final double? realizedPnl;
 
   bool get isTakeProfit => orderType == 'limit';
 }
@@ -42,11 +46,19 @@ final triggerFillsProvider = StreamProvider<TriggerFill>((ref) {
         ),
         callback: (payload) {
           final row = payload.newRecord;
-          if (row['status'] == 'filled' && row['order_type'] != 'market') {
+          // Only protective sells (TP/SL/trailing) — a buy-limit/stop entry is
+          // also order_type 'limit'/'stop', and would otherwise be mislabelled
+          // as a take-profit here.
+          if (row['status'] == 'filled' &&
+              row['order_type'] != 'market' &&
+              row['side'] == 'sell') {
             controller.add(TriggerFill(
               assetId: row['asset_id'] as String,
               orderType: row['order_type'] as String,
               quantity: jsonDouble(row['quantity']),
+              realizedPnl: row['realized_pnl'] == null
+                  ? null
+                  : jsonDouble(row['realized_pnl']),
             ));
           }
         },
