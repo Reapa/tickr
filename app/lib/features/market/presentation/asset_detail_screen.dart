@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/asset_icons.dart';
 import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
@@ -56,7 +57,15 @@ class AssetDetailScreen extends ConsumerWidget {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: Text('${asset.symbol} · ${asset.name}')),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            AssetBadge(symbol: asset.symbol, sector: asset.sector, size: 28),
+            const SizedBox(width: 10),
+            Flexible(child: Text('${asset.symbol} · ${asset.name}')),
+          ],
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 96),
         children: [

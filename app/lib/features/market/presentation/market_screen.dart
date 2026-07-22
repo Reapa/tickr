@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/asset_icons.dart';
 import '../../../core/brand.dart';
 import '../../../core/education.dart';
 import '../../../core/format.dart';
 import '../../../core/widgets/async_view.dart';
 import '../../../core/widgets/concept_chip.dart';
 import '../../../core/widgets/skeleton.dart';
-import '../../../core/sector_colors.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/price_flash.dart';
 import '../../../core/widgets/tutorial_tip.dart';
@@ -359,7 +359,6 @@ class _AssetTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sectorColor = SectorColors.of(asset.sector);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: FlashOnChange(
@@ -372,25 +371,7 @@ class _AssetTile extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           child: Row(
             children: [
-              // Ticker badge
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: sectorColor.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: sectorColor.withValues(alpha: 0.35)),
-                ),
-                child: Text(
-                  asset.symbol.substring(0, asset.symbol.length.clamp(0, 2)),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: sectorColor,
-                  ),
-                ),
-              ),
+              AssetBadge(symbol: asset.symbol, sector: asset.sector, size: 44),
               const SizedBox(width: 12),
               // Name + sector/spread
               Expanded(

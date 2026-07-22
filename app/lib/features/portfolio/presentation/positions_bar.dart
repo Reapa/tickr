@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/asset_icons.dart';
 import '../../../core/cosmetics.dart';
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
@@ -261,6 +262,8 @@ class _PositionChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           children: [
+            AssetBadge(symbol: asset.symbol, sector: asset.sector, size: 16),
+            const SizedBox(width: 5),
             Text(asset.symbol,
                 style: const TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w600)),
