@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,9 +10,11 @@ import 'core/env.dart';
 import 'core/prefs.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'features/income/data/income_repository.dart';
 import 'features/leverage/data/leverage_repository.dart';
 import 'features/market/data/market_repository.dart';
 import 'features/portfolio/data/portfolio_repository.dart';
+import 'features/predictions/data/predictions_repository.dart';
 import 'features/profile/data/profile_repository.dart';
 
 Future<void> main() async {
@@ -36,15 +40,23 @@ class TradingGameApp extends ConsumerStatefulWidget {
 
 class _TradingGameAppState extends ConsumerState<TradingGameApp> {
   late final AppLifecycleListener _lifecycle;
+  Timer? _rateRefresh;
 
   @override
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: _resyncLiveData);
+    // Keep the display-currency rate current without the per-tick wobble that
+    // made us snapshot it in the first place. Also refreshed on resume below.
+    _rateRefresh = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) => ref.read(currencyProvider.notifier).refreshRate(),
+    );
   }
 
   @override
   void dispose() {
+    _rateRefresh?.cancel();
     _lifecycle.dispose();
     super.dispose();
   }
@@ -61,6 +73,11 @@ class _TradingGameAppState extends ConsumerState<TradingGameApp> {
     ref.invalidate(openOrdersProvider);
     ref.invalidate(leveragedPositionsProvider);
     ref.invalidate(myProfileProvider);
+    ref.invalidate(openPredictionsProvider);
+    ref.invalidate(incomeProvider);
+    // Re-snapshot the currency rate against freshly-fetched prices so a label
+    // in Rand isn't stuck on a rate from before the phone locked.
+    ref.read(currencyProvider.notifier).refreshRate();
   }
 
   @override

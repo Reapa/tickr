@@ -14,6 +14,7 @@ import '../../../core/widgets/price_flash.dart';
 import '../../../core/widgets/tutorial_tip.dart';
 import '../../leverage/data/leverage_repository.dart';
 import '../../leverage/presentation/leverage_position_card.dart';
+import '../../income/presentation/income_card.dart';
 import '../../market/data/market_repository.dart';
 import '../../market/domain/asset.dart';
 import '../../milestones/presentation/milestone_widgets.dart';
@@ -117,6 +118,7 @@ class PortfolioScreen extends ConsumerWidget {
               ),
             ),
             const _NetWorthChart(),
+            const IncomeCard(),
             const MilestoneProgress(),
             const AllocationDonut(),
             if (sectorWeights.isNotEmpty)

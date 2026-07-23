@@ -19,6 +19,7 @@ class PredictionsRepository {
     RealtimeChannel? preds;
     RealtimeChannel? mine;
     Timer? debounce;
+    Timer? backstop;
 
     Future<void> refresh() async {
       try {
@@ -54,6 +55,12 @@ class PredictionsRepository {
 
     controller.onListen = () {
       refresh();
+      // Mobile browsers suspend the Realtime WS when the tab backgrounds or the
+      // phone locks, and postgres_changes never replays the gap — so the open
+      // predictions could freeze (a resolved call stuck "open") until a manual
+      // refresh. A periodic re-fetch is the backstop, matching watchAssets/
+      // watchEvents; onResume invalidation rebuilds the subscription entirely.
+      backstop = Timer.periodic(const Duration(seconds: 30), (_) => refresh());
       preds = _client
           .channel('predictions-open')
           .onPostgresChanges(
@@ -80,6 +87,7 @@ class PredictionsRepository {
     };
     controller.onCancel = () {
       debounce?.cancel();
+      backstop?.cancel();
       if (preds != null) _client.removeChannel(preds!);
       if (mine != null) _client.removeChannel(mine!);
     };

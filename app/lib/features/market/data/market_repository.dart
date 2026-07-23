@@ -21,7 +21,7 @@ class MarketRepository {
 
   static const _assetColumns = 'id, symbol, name, class_id, sector, '
       'description, current_price, spread, is_active, market_hours, '
-      'listed_at, updated_at';
+      'income_yield, listed_at, updated_at';
   static const _eventColumns =
       'id, scope, asset_id, sector, headline, body, sentiment, starts_at, '
       'ends_at, is_major';

@@ -347,3 +347,21 @@ update public.assets set base_volatility = round((base_volatility *
                 when 'real_estate' then 2.5
                 when 'forex'       then 1.5
                 else 1.0 end)::numeric, 4);
+
+-- ----------------------------------------------------------------------------
+-- Passive-income yields (migration 40). Same seed-timing story as above: the
+-- migration's UPDATEs no-op on a from-scratch reset because assets don't exist
+-- yet, so we set the dividend/rent yields here instead. Only one path applies.
+-- ----------------------------------------------------------------------------
+update public.assets set income_yield = 0.030 where class_id = 'stocks' and symbol = 'SLCT';
+update public.assets set income_yield = 0.050 where class_id = 'stocks' and symbol = 'XOFF';
+update public.assets set income_yield = 0.030 where class_id = 'stocks' and symbol in ('GMSX','GEKO');
+update public.assets set income_yield = 0.020 where class_id = 'stocks' and symbol = 'VIZA';
+update public.assets set income_yield = 0.035 where class_id = 'stocks' and symbol = 'KOKA';
+update public.assets set income_yield = 0.020 where class_id = 'stocks' and symbol in ('SBRW','NIKY');
+update public.assets set income_yield = 0.035 where class_id = 'stocks' and symbol = 'JNJN';
+update public.assets set income_yield = 0.030 where class_id = 'stocks' and symbol = 'PFZR';
+update public.assets set income_yield = 0.050 where symbol in ('DWTN','WRHS');
+update public.assets set income_yield = 0.055 where symbol = 'SUBH';
+update public.assets set income_yield = 0.045 where symbol = 'MALL';
+update public.assets set income_yield = 0.065 where symbol = 'ISLE';

@@ -48,6 +48,27 @@ class CurrencyNotifier extends Notifier<Currency> {
     Fmt.rate = rate;
     state = currency;
   }
+
+  /// Re-snapshot the live pair price so the held rate follows the market over
+  /// time. Called on a ~5-minute timer and on app resume (see [TradingGameApp]):
+  /// a fully-live rate wobbles every label per tick (the reason we snapshot at
+  /// all), but a never-updating snapshot went stale — Rand stayed frozen until
+  /// the player re-picked the currency. This is the middle ground. The update
+  /// is silent (no re-key); tick-driven rebuilds pick up the new [Fmt.rate].
+  void refreshRate() {
+    if (state.pairSymbol == null) return;
+    // Only update from a real live pair price. If the pair isn't loaded yet
+    // (e.g. assetsProvider was just invalidated on resume), keep the last good
+    // rate rather than snapping to the approximate fallback constant.
+    final pair = (ref.read(assetsProvider).value ?? const [])
+        .where((a) => a.symbol == state.pairSymbol)
+        .firstOrNull;
+    if (pair == null) return;
+    final rate = perUsdFromPair(state, pair.currentPrice);
+    if (rate <= 0) return;
+    Fmt.rate = rate;
+    ref.read(sharedPreferencesProvider).setDouble(_kRate, rate);
+  }
 }
 
 final currencyProvider =

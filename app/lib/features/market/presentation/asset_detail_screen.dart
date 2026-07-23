@@ -220,14 +220,26 @@ class _TradeLabel extends StatelessWidget {
 
 /// The buy / sell / leverage action bar. Reflects market open/closed state and
 /// explains why an action is unavailable instead of leaving a dead button.
-class _TradeBar extends StatelessWidget {
+///
+/// When the asset's class isn't unlocked, the bar becomes an unlock CTA instead
+/// — the chart and prices above stay fully browsable so players can see what
+/// they're working toward before they buy in.
+class _TradeBar extends ConsumerWidget {
   const _TradeBar({required this.asset, required this.hasPosition});
 
   final Asset asset;
   final bool hasPosition;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unlockedIds =
+        ref.watch(unlockedClassesProvider).value ?? const <String>{};
+    if (!unlockedIds.contains(asset.classId)) {
+      final cls = (ref.watch(assetClassesProvider).value ?? const <AssetClass>[])
+          .where((c) => c.id == asset.classId)
+          .firstOrNull;
+      return _LockedTradeBar(asset: asset, assetClass: cls);
+    }
     final open = asset.isMarketOpenNow;
     // A single, non-clipping status line.
     final (statusLine, statusColor) = !open
@@ -307,6 +319,115 @@ class _TradeBar extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Shown in place of the trade buttons when the asset's class is still locked.
+/// Prices and the chart above remain visible — this is the "look, don't trade
+/// yet" state that turns a locked market into an aspiration.
+class _LockedTradeBar extends ConsumerWidget {
+  const _LockedTradeBar({required this.asset, required this.assetClass});
+
+  final Asset asset;
+  final AssetClass? assetClass;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cls = assetClass;
+    final comingSoon = cls != null && !cls.isEnabled;
+    final label = cls == null
+        ? 'Locked'
+        : comingSoon
+            ? '${cls.name} — coming soon'
+            : 'Unlock ${cls.name} for ${Fmt.money(cls.unlockCost)}';
+    final status = cls == null
+        ? 'This market is locked.'
+        : comingSoon
+            ? 'Browsing only for now — ${cls.name} opens in a future update.'
+            : 'Browsing ${asset.symbol}. Unlock ${cls.name} to buy and sell.';
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(top: BorderSide(color: AppTheme.hairline)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    status,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Colors.grey.shade400),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: _tradeBtnStyle(bg: AppTheme.accent, fg: Colors.black),
+                icon: Icon(comingSoon ? Icons.schedule : Icons.lock_open,
+                    size: 16, color: Colors.black),
+                onPressed: (cls == null || comingSoon)
+                    ? null
+                    : () => confirmClassUnlock(context, ref, cls),
+                label: _TradeLabel(label),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Confirm-then-buy an asset-class unlock. Shared by the locked trade bar and
+/// the leverage button. Invalidates the unlock set on success so the UI opens
+/// trading immediately.
+Future<void> confirmClassUnlock(
+    BuildContext context, WidgetRef ref, AssetClass cls) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Unlock ${cls.name}'),
+      content: Text(
+          '${cls.description}\n\nUnlock for ${Fmt.money(cls.unlockCost)}?'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not yet')),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Unlock for ${Fmt.money(cls.unlockCost)}')),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  try {
+    final receipt =
+        await ref.read(tradingRepositoryProvider).purchaseAssetClassUnlock(cls.id);
+    if (receipt.status == 'unlocked') {
+      ref.invalidate(unlockedClassesProvider);
+      messenger.showSnackBar(SnackBar(
+          content: Text('${cls.name} unlocked — trade away!')));
+    } else {
+      messenger.showSnackBar(
+          SnackBar(content: Text('Unlock failed: ${receipt.reason ?? 'unknown'}')));
+    }
+  } catch (error) {
+    messenger.showSnackBar(SnackBar(content: Text('Unlock failed: $error')));
   }
 }
 

@@ -15,6 +15,7 @@ class Asset {
     required this.spread,
     required this.isActive,
     required this.marketHours,
+    this.incomeYield = 0,
   });
 
   factory Asset.fromJson(Map<String, dynamic> json) => Asset(
@@ -28,6 +29,7 @@ class Asset {
         spread: jsonDouble(json['spread']),
         isActive: (json['is_active'] as bool?) ?? true,
         marketHours: (json['market_hours'] as String?) ?? 'weekday_day',
+        incomeYield: jsonDouble(json['income_yield']),
       );
 
   final String id;
@@ -42,6 +44,16 @@ class Asset {
 
   /// '24_7' (crypto), '24_5' (forex), or 'weekday_day' (stocks / real estate).
   final String marketHours;
+
+  /// Annual passive-income yield (fraction of position value): dividends for
+  /// stocks/companies, rent for real estate. 0 = pays nothing.
+  final double incomeYield;
+
+  /// Whether this asset pays passive income at all.
+  bool get paysIncome => incomeYield > 0;
+
+  /// The label a payout from this asset carries.
+  bool get isRentAsset => classId == 'real_estate';
 
   /// Forex pairs quote a ratio between two currencies, so their price must not
   /// be re-denominated by the player's display currency.
@@ -98,6 +110,7 @@ class Asset {
         spread: spread,
         isActive: isActive,
         marketHours: marketHours,
+        incomeYield: incomeYield,
       );
 }
 

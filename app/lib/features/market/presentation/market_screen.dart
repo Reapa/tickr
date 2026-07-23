@@ -342,8 +342,14 @@ class _MarketList extends ConsumerWidget {
                   ...sortAssets(
                           assetList.where((a) => a.classId == cls.id).toList())
                       .map((a) => _AssetTile(asset: a))
-                else
+                else ...[
                   _LockedClassCard(assetClass: cls),
+                  // Locked classes are still browsable: show their live prices
+                  // and charts so players can see what they're working toward.
+                  ...assetList
+                      .where((a) => a.classId == cls.id)
+                      .map((a) => _AssetTile(asset: a, locked: true)),
+                ],
               ],
               const SizedBox(height: 24),
             ],
@@ -355,9 +361,13 @@ class _MarketList extends ConsumerWidget {
 }
 
 class _AssetTile extends ConsumerWidget {
-  const _AssetTile({required this.asset});
+  const _AssetTile({required this.asset, this.locked = false});
 
   final Asset asset;
+
+  /// Browsable but not yet tradable — the asset's class is still locked. Shows
+  /// a lock pill; tapping through still opens the (read-only) detail chart.
+  final bool locked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -386,6 +396,10 @@ class _AssetTile extends ConsumerWidget {
                         Text(asset.symbol,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w800, fontSize: 15)),
+                        if (locked) ...[
+                          const SizedBox(width: 6),
+                          const _MiniBadge(text: 'LOCKED', color: Colors.grey),
+                        ],
                         if (asset.marketHours == '24_7') ...[
                           const SizedBox(width: 6),
                           const _MiniBadge(text: '24/7', color: AppTheme.up),
@@ -484,6 +498,13 @@ class _LockedClassCard extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Expanded(child: Text(assetClass.description)),
               ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              assetClass.isEnabled
+                  ? 'Browse the live prices below — unlock to start trading.'
+                  : 'Browse the live prices below — trading opens soon.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
             const SizedBox(height: 12),
             FilledButton.tonal(
