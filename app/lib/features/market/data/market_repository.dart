@@ -122,11 +122,18 @@ class MarketRepository {
   /// A tick advances ~30 assets at once, firing ~30 Realtime inserts in a
   /// burst. Emitting per insert would rebuild the whole list ~30× every cycle
   /// (the source of market-tab jank), so bursts are coalesced into one emit.
+  ///
+  /// A 20s re-fetch backstop guards against a silently-stalled WebSocket — on
+  /// mobile the price_ticks subscription can suspend (backgrounding, a flaky
+  /// network, a locked screen) and postgres_changes never replays the gap, so
+  /// prices would freeze on a stale value until the app was reopened (making a
+  /// just-bought position look like a huge loss). The resync self-heals it.
   Stream<List<Asset>> watchAssets() {
     final controller = StreamController<List<Asset>>();
     final byId = <String, Asset>{};
     RealtimeChannel? channel;
     Timer? flush;
+    Timer? resync;
 
     void emit() {
       final list = byId.values.toList()
@@ -139,6 +146,17 @@ class MarketRepository {
         flush = null;
         emit();
       });
+    }
+
+    Future<void> resyncFetch() async {
+      try {
+        for (final asset in await fetchAssets()) {
+          byId[asset.id] = asset;
+        }
+        emit();
+      } catch (_) {
+        // Transient (offline); the next resync reconciles.
+      }
     }
 
     controller.onListen = () async {
@@ -167,9 +185,11 @@ class MarketRepository {
             },
           )
           .subscribe();
+      resync = Timer.periodic(const Duration(seconds: 20), (_) => resyncFetch());
     };
     controller.onCancel = () {
       flush?.cancel();
+      resync?.cancel();
       if (channel != null) _client.removeChannel(channel!);
     };
     return controller.stream;
