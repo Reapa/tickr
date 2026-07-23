@@ -128,6 +128,25 @@ class ShellScreen extends ConsumerWidget {
     });
   }
 
+  void _listenForRankChange(BuildContext context, WidgetRef ref) {
+    ref.listen(rankSnapshotProvider, (previous, next) {
+      final before = previous?.value;
+      final after = next.value;
+      if (before == null || after == null || after.rank >= before.rank) return;
+      final passed = after.aheadOf;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: AppTheme.up,
+        content: Text(
+          passed != null
+              ? '↑ You passed $passed — now #${after.rank}'
+              : '↑ You climbed to #${after.rank}',
+          style: const TextStyle(
+              color: Colors.black, fontWeight: FontWeight.w700),
+        ),
+      ));
+    });
+  }
+
   void _listenForSeasonResult(BuildContext context, WidgetRef ref) {
     ref.listen(seasonResultProvider, (previous, next) {
       final result = next.value;
@@ -181,6 +200,7 @@ class ShellScreen extends ConsumerWidget {
     _listenForLevelUp(context, ref);
     _listenForPredictionResults(context, ref);
     _listenForSeasonResult(context, ref);
+    _listenForRankChange(context, ref);
     _maybePromptDaily(context, ref);
     final crateCount = ref.watch(unopenedCratesProvider).value?.length ?? 0;
     // Profile is the last destination (index 4); badge it when crates wait.

@@ -267,6 +267,13 @@ class CompetitionRepository {
     return SeasonResult.fromJson(json);
   }
 
+  Future<RankSnapshot?> fetchRankSnapshot() async {
+    final json = await _client.rpc<Map<String, dynamic>>('my_rank_snapshot');
+    if (json['rank'] == null) return null;
+    return RankSnapshot(
+        rank: jsonInt(json['rank']), aheadOf: json['ahead_of'] as String?);
+  }
+
   Future<List<ActivityItem>> fetchActivity({int limit = 30}) async {
     final rows = await _client
         .rpc<List<dynamic>>('get_recent_activity', params: {'p_limit': limit});
@@ -313,6 +320,14 @@ class SeasonResult {
   /// Rank as a top-fraction (0.05 = top 5%).
   double get percentile => players <= 0 ? 1 : rank / players;
   bool get isPodium => rank <= 3;
+}
+
+/// The caller's global rank + who sits one place below (for overtake toasts).
+class RankSnapshot {
+  const RankSnapshot({required this.rank, this.aheadOf});
+
+  final int rank;
+  final String? aheadOf;
 }
 
 /// A notable move from the public activity feed.
@@ -378,6 +393,14 @@ final activeSeasonProvider = FutureProvider<Season?>(
 final seasonResultProvider = FutureProvider<SeasonResult?>(
   (ref) => ref.watch(competitionRepositoryProvider).claimSeasonResult(),
 );
+
+/// The player's global rank, polled every 25s so an overtake can be surfaced.
+final rankSnapshotProvider =
+    FutureProvider.autoDispose<RankSnapshot?>((ref) {
+  final timer = Timer(const Duration(seconds: 25), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+  return ref.watch(competitionRepositoryProvider).fetchRankSnapshot();
+});
 
 /// Public activity feed, refreshed every 8s so it feels live.
 final activityFeedProvider =
