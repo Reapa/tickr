@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/crates/data/crates_repository.dart';
 import '../features/leverage/data/leverage_repository.dart';
+import '../features/predictions/data/predictions_repository.dart';
 import '../features/market/data/market_repository.dart';
 import '../features/market/domain/market_event.dart';
 import '../features/portfolio/data/portfolio_repository.dart';
@@ -107,6 +108,24 @@ class ShellScreen extends ConsumerWidget {
     });
   }
 
+  void _listenForPredictionResults(BuildContext context, WidgetRef ref) {
+    ref.listen(predictionResultsProvider, (previous, next) {
+      final r = next.value;
+      if (r == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: r.correct ? AppTheme.up : AppTheme.surfaceHigh,
+        content: Text(
+          r.correct
+              ? '🔮 Prediction hit — +${r.awardedXp} XP'
+              : '🔮 Prediction missed — better luck next call',
+          style: TextStyle(
+              color: r.correct ? Colors.black : Colors.white,
+              fontWeight: FontWeight.w600),
+        ),
+      ));
+    });
+  }
+
   void _listenForLevelUp(BuildContext context, WidgetRef ref) {
     ref.listen(myProfileProvider, (previous, next) {
       final before = previous?.value?.level;
@@ -151,6 +170,7 @@ class ShellScreen extends ConsumerWidget {
     _listenForTriggerFills(context, ref);
     _listenForLeveragedCloses(context, ref);
     _listenForLevelUp(context, ref);
+    _listenForPredictionResults(context, ref);
     _maybePromptDaily(context, ref);
     final crateCount = ref.watch(unopenedCratesProvider).value?.length ?? 0;
     // Profile is the last destination (index 4); badge it when crates wait.

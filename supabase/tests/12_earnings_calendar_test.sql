@@ -60,6 +60,8 @@ select ok(has_column_privilege('authenticated', 'public.scheduled_events', 'head
 -- ---------------------------------------------------------------------------
 truncate public.scheduled_events;
 update public.game_config set value = '2' where key = 'earnings_max_pending';
+-- Pin to earnings (scheduling can otherwise roll a rumour, migration 36).
+update public.game_config set value = '0' where key = 'rumour_share';
 
 select game.schedule_earnings_event();
 select ok((select count(*) from public.scheduled_events

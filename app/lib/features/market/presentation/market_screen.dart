@@ -13,6 +13,7 @@ import '../../../core/widgets/skeleton.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/price_flash.dart';
 import '../../../core/widgets/tutorial_tip.dart';
+import '../../predictions/presentation/predictions_section.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
@@ -533,6 +534,7 @@ class _NewsTab extends ConsumerWidget {
       builder: (eventList) {
         return ListView(
           children: [
+            const PredictionsSection(),
             const UpcomingEarningsSection(),
             if (eventList.isEmpty)
               const Padding(

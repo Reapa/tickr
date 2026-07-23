@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/format.dart';
 import '../../../core/theme.dart';
+import '../../../core/widgets/countdown.dart';
 import '../data/market_repository.dart';
 import '../domain/asset.dart';
 import '../domain/market_event.dart';
@@ -30,12 +29,12 @@ class UpcomingEarningsSection extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
           child: Row(
             children: [
-              Text('📅 Upcoming earnings',
+              Text('📅 Upcoming & rumours',
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Position before the result — the beat/miss is a surprise.',
+                  'Position before it resolves — the outcome is a surprise.',
                   style: TextStyle(
                       fontSize: 11, color: Colors.grey.shade500),
                 ),
@@ -59,20 +58,26 @@ class _UpcomingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isRumour = event.kind == 'rumour';
+    final color = isRumour ? const Color(0xFFB05CFF) : AppTheme.accent;
     return Card(
       child: ListTile(
         dense: true,
-        leading: const CircleAvatar(
+        leading: CircleAvatar(
           radius: 16,
-          backgroundColor: Color(0x2247B0FF),
-          child: Icon(Icons.event_note, size: 18, color: AppTheme.accent),
+          backgroundColor: color.withValues(alpha: 0.16),
+          child: Icon(isRumour ? Icons.help_outline : Icons.event_note,
+              size: 18, color: color),
         ),
         title: Text(event.headline,
             maxLines: 2, overflow: TextOverflow.ellipsis),
-        subtitle: const Text('Tap to position before the report'),
-        trailing: _Countdown(
+        subtitle: Text(isRumour
+            ? 'Rumour — may or may not be confirmed. Trade the whisper at your own risk.'
+            : 'Tap to position before the report'),
+        trailing: Countdown(
           target: event.resolvesAt,
-          builder: (remaining) => _CountdownPill(remaining: remaining),
+          builder: (remaining) =>
+              _CountdownPill(remaining: remaining, baseColor: color),
         ),
         onTap: () => context.go('/market/asset/${event.assetId}'),
       ),
@@ -92,30 +97,41 @@ class AssetEarningsBanner extends ConsumerWidget {
         .where((e) => e.assetId == assetId)
         .firstOrNull;
     if (event == null) return const SizedBox.shrink();
+    final isRumour = event.kind == 'rumour';
+    final color = isRumour ? const Color(0xFFB05CFF) : AppTheme.accent;
     return Card(
-      color: AppTheme.accent.withValues(alpha: 0.12),
+      color: color.withValues(alpha: 0.12),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
-            const Icon(Icons.event_note, color: AppTheme.accent),
+            Icon(isRumour ? Icons.help_outline : Icons.event_note, color: color),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${event.quarter ?? ''} earnings ahead'.trim(),
+                  Text(
+                      isRumour
+                          ? 'Unconfirmed rumour'
+                          : '${event.quarter ?? ''} earnings ahead'.trim(),
                       style: const TextStyle(fontWeight: FontWeight.w800)),
-                  Text('The result is hidden until it lands — take your view.',
+                  Text(
+                      isRumour
+                          ? event.headline
+                          : 'The result is hidden until it lands — take your view.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade400)),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            _Countdown(
+            Countdown(
               target: event.resolvesAt,
-              builder: (remaining) => _CountdownPill(remaining: remaining),
+              builder: (remaining) =>
+                  _CountdownPill(remaining: remaining, baseColor: color),
             ),
           ],
         ),
@@ -125,14 +141,15 @@ class AssetEarningsBanner extends ConsumerWidget {
 }
 
 class _CountdownPill extends StatelessWidget {
-  const _CountdownPill({required this.remaining});
+  const _CountdownPill({required this.remaining, required this.baseColor});
 
   final Duration remaining;
+  final Color baseColor;
 
   @override
   Widget build(BuildContext context) {
     final soon = remaining.inSeconds <= 30;
-    final color = soon ? AppTheme.gold : AppTheme.accent;
+    final color = soon ? AppTheme.gold : baseColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -156,40 +173,5 @@ class _CountdownPill extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-/// Rebuilds once a second to drive a live countdown to [target].
-class _Countdown extends StatefulWidget {
-  const _Countdown({required this.target, required this.builder});
-
-  final DateTime target;
-  final Widget Function(Duration remaining) builder;
-
-  @override
-  State<_Countdown> createState() => _CountdownState();
-}
-
-class _CountdownState extends State<_Countdown> {
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final remaining = widget.target.difference(DateTime.now());
-    return widget.builder(remaining.isNegative ? Duration.zero : remaining);
   }
 }
