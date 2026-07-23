@@ -13,6 +13,7 @@ import '../../../core/widgets/skeleton.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/price_flash.dart';
 import '../../../core/widgets/tutorial_tip.dart';
+import '../../companies/presentation/companies_tab.dart';
 import '../../predictions/presentation/predictions_section.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
@@ -72,12 +73,7 @@ class MarketScreen extends ConsumerWidget {
                 'Direct property ownership with weekly rental income is on '
                 'the roadmap.',
           ),
-          _MarketList(
-            classIds: {'companies'},
-            banner: '🏭 Own a stake in private companies. Full company '
-                'ownership — with profits tied to market performance — is '
-                'coming.',
-          ),
+          CompaniesTab(),
           _MarketList(
             classIds: {'crypto'},
             banner: '🟢 Crypto trades 24/7 — extreme volatility, big swings, '

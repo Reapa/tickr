@@ -8,6 +8,8 @@ class Profile {
     required this.friendCode,
     required this.cashBalance,
     required this.netWorth,
+    required this.tradingNetWorth,
+    required this.businessEquity,
     required this.xp,
     required this.level,
     required this.premiumBalance,
@@ -23,6 +25,8 @@ class Profile {
         friendCode: json['friend_code'] as String,
         cashBalance: jsonDouble(json['cash_balance']),
         netWorth: jsonDouble(json['net_worth']),
+        tradingNetWorth: jsonDouble(json['trading_net_worth']),
+        businessEquity: jsonDouble(json['business_equity']),
         xp: jsonInt(json['xp']),
         level: jsonInt(json['level'], 1),
         premiumBalance: jsonInt(json['premium_balance']),
@@ -38,7 +42,19 @@ class Profile {
   final String displayName;
   final String friendCode;
   final double cashBalance;
+
+  /// Total net worth = trading + business. What the player sees as "my net
+  /// worth" and what milestones use.
   final double netWorth;
+
+  /// Cash + holdings + leverage only. Drives season % return (business equity
+  /// is deliberately excluded so seasons stay a pure trading contest).
+  final double tradingNetWorth;
+
+  /// Owned-company value (+ retained founder shares once public). In total net
+  /// worth, not in season scoring.
+  final double businessEquity;
+
   final int xp;
   final int level;
   final int premiumBalance;

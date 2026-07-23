@@ -147,6 +147,7 @@ class IncomeCard extends ConsumerWidget {
     final parts = <String>[
       if (r.dividends > 0) '${Fmt.money(r.dividends)} dividends',
       if (r.rent > 0) '${Fmt.money(r.rent)} rent',
+      if (r.business > 0) '${Fmt.money(r.business)} business',
     ];
     return parts.isEmpty ? Fmt.money(r.total) : parts.join(' + ');
   }
@@ -156,6 +157,8 @@ class IncomeCard extends ConsumerWidget {
       if (income.pendingDividends > 0)
         'Dividends ${Fmt.money(income.pendingDividends)}',
       if (income.pendingRent > 0) 'Rent ${Fmt.money(income.pendingRent)}',
+      if (income.pendingBusiness > 0)
+        'Business ${Fmt.money(income.pendingBusiness)}',
     ];
     return parts.join('  ·  ');
   }
