@@ -258,11 +258,61 @@ class CompetitionRepository {
         'p_accept': accept,
       });
 
+  /// The player's most recent unseen closed-season result, or null. Claiming
+  /// marks it seen server-side, so it only ever surfaces once.
+  Future<SeasonResult?> claimSeasonResult() async {
+    final json =
+        await _client.rpc<Map<String, dynamic>>('claim_season_result');
+    if (json['status'] != 'result') return null;
+    return SeasonResult.fromJson(json);
+  }
+
   Future<List<ActivityItem>> fetchActivity({int limit = 30}) async {
     final rows = await _client
         .rpc<List<dynamic>>('get_recent_activity', params: {'p_limit': limit});
     return rows.cast<Map<String, dynamic>>().map(ActivityItem.fromJson).toList();
   }
+}
+
+/// A player's final standing in a season that just closed — for the reveal.
+class SeasonResult {
+  const SeasonResult({
+    required this.seasonNumber,
+    required this.seasonName,
+    required this.rank,
+    required this.players,
+    required this.pctReturn,
+    required this.top10,
+    required this.rewardGems,
+    required this.rewardCash,
+    this.rewardCosmetic,
+  });
+
+  factory SeasonResult.fromJson(Map<String, dynamic> json) => SeasonResult(
+        seasonNumber: jsonInt(json['season_number']),
+        seasonName: json['season_name'] as String,
+        rank: jsonInt(json['rank']),
+        players: jsonInt(json['players']),
+        pctReturn: jsonDouble(json['pct_return']),
+        top10: json['top10'] as bool? ?? false,
+        rewardGems: jsonInt(json['reward_gems']),
+        rewardCash: jsonInt(json['reward_cash']),
+        rewardCosmetic: json['reward_cosmetic'] as String?,
+      );
+
+  final int seasonNumber;
+  final String seasonName;
+  final int rank;
+  final int players;
+  final double pctReturn;
+  final bool top10;
+  final int rewardGems;
+  final int rewardCash;
+  final String? rewardCosmetic;
+
+  /// Rank as a top-fraction (0.05 = top 5%).
+  double get percentile => players <= 0 ? 1 : rank / players;
+  bool get isPodium => rank <= 3;
 }
 
 /// A notable move from the public activity feed.
@@ -321,6 +371,12 @@ final friendsLeaderboardProvider = FutureProvider<List<LeaderboardEntry>>(
 
 final activeSeasonProvider = FutureProvider<Season?>(
   (ref) => ref.watch(competitionRepositoryProvider).fetchActiveSeason(),
+);
+
+/// Claims (once) the player's latest closed-season result on app start. Null
+/// when there is nothing new to reveal.
+final seasonResultProvider = FutureProvider<SeasonResult?>(
+  (ref) => ref.watch(competitionRepositoryProvider).claimSeasonResult(),
 );
 
 /// Public activity feed, refreshed every 8s so it feels live.

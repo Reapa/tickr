@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/competition/data/competition_repository.dart';
+import '../features/competition/presentation/season_result.dart';
 import '../features/crates/data/crates_repository.dart';
 import '../features/leverage/data/leverage_repository.dart';
 import '../features/predictions/data/predictions_repository.dart';
@@ -126,6 +128,13 @@ class ShellScreen extends ConsumerWidget {
     });
   }
 
+  void _listenForSeasonResult(BuildContext context, WidgetRef ref) {
+    ref.listen(seasonResultProvider, (previous, next) {
+      final result = next.value;
+      if (result != null) showSeasonResult(context, result);
+    });
+  }
+
   void _listenForLevelUp(BuildContext context, WidgetRef ref) {
     ref.listen(myProfileProvider, (previous, next) {
       final before = previous?.value?.level;
@@ -171,6 +180,7 @@ class ShellScreen extends ConsumerWidget {
     _listenForLeveragedCloses(context, ref);
     _listenForLevelUp(context, ref);
     _listenForPredictionResults(context, ref);
+    _listenForSeasonResult(context, ref);
     _maybePromptDaily(context, ref);
     final crateCount = ref.watch(unopenedCratesProvider).value?.length ?? 0;
     // Profile is the last destination (index 4); badge it when crates wait.

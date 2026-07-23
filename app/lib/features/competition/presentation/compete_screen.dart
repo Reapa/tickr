@@ -432,23 +432,47 @@ class _SeasonTab extends ConsumerWidget {
 }
 
 /// Season banner: a countdown ring, the format, and what the top finishers win.
-class _SeasonHeader extends StatelessWidget {
+class _SeasonHeader extends ConsumerWidget {
   const _SeasonHeader({required this.season});
 
   final Season season;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final total = season.endsAt.difference(season.startsAt).inSeconds;
     final elapsed = DateTime.now().difference(season.startsAt).inSeconds;
     final progress = total <= 0 ? 1.0 : (elapsed / total).clamp(0.0, 1.0);
     final rem = season.remaining;
+    final finalHours = rem.inHours < 48 && rem > Duration.zero;
+    final board =
+        ref.watch(seasonLeaderboardProvider(season.id)).value ?? const [];
+    final myId = ref.watch(currentUserIdProvider);
+    final me = board.where((e) => e.userId == myId).firstOrNull;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (finalHours)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.down.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
+                  border:
+                      Border.all(color: AppTheme.down.withValues(alpha: 0.5)),
+                ),
+                child: Text(
+                  '⏳ FINAL HOURS — ends in ${rem.inHours}h ${rem.inMinutes % 60}m. '
+                  'Every % counts.',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, color: AppTheme.down),
+                ),
+              ),
             Row(
               children: [
                 SizedBox(
@@ -498,6 +522,17 @@ class _SeasonHeader extends StatelessWidget {
                 ),
               ],
             ),
+            if (me != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                "You're #${me.rank} of ${board.length}"
+                "${board.isNotEmpty ? ' · top ${(me.rank / board.length * 100).ceil()}%' : ''}"
+                ' · ${me.value >= 0 ? '+' : ''}${Fmt.pct(me.value)}',
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: finalHours ? AppTheme.down : AppTheme.brand),
+              ),
+            ],
             const Divider(height: 22),
             Text('SEASON REWARDS',
                 style: TextStyle(
