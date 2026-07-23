@@ -8,6 +8,7 @@ import '../../../core/currency.dart';
 import '../../../core/currency_prefs.dart';
 import '../../../core/feedback.dart';
 import '../../crates/presentation/crate_reveal.dart';
+import '../../milestones/presentation/milestone_widgets.dart';
 import '../../../core/tutorial.dart';
 import '../../../core/widgets/trader_avatar.dart';
 import '../../../core/format.dart';
@@ -130,6 +131,7 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
                 const CratesCard(),
+                const MilestoneLadder(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: Text('Progression',
