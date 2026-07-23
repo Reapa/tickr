@@ -12,6 +12,7 @@ import 'core/router.dart';
 import 'core/theme.dart';
 import 'features/companies/data/companies_repository.dart';
 import 'features/income/data/income_repository.dart';
+import 'features/properties/data/properties_repository.dart';
 import 'features/leverage/data/leverage_repository.dart';
 import 'features/market/data/market_repository.dart';
 import 'features/portfolio/data/portfolio_repository.dart';
@@ -78,6 +79,7 @@ class _TradingGameAppState extends ConsumerState<TradingGameApp> {
     ref.invalidate(incomeProvider);
     ref.invalidate(myCompaniesProvider);
     ref.invalidate(myCompanyDecisionsProvider);
+    ref.invalidate(myPropertiesProvider);
     // Re-snapshot the currency rate against freshly-fetched prices so a label
     // in Rand isn't stuck on a rate from before the phone locked.
     ref.read(currencyProvider.notifier).refreshRate();

@@ -110,6 +110,11 @@ class _CompaniesLocked extends ConsumerWidget {
             onPressed: () => confirmClassUnlock(context, ref, cls),
             label: Text('Unlock Companies for ${Fmt.money(cls.unlockCost)}'),
           ),
+        const SizedBox(height: 20),
+        Text('Businesses you could acquire',
+            style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        const _ListingsSection(locked: true),
       ],
     );
   }
@@ -367,7 +372,11 @@ class _DecisionCardState extends ConsumerState<_DecisionCard> {
 }
 
 class _ListingsSection extends ConsumerWidget {
-  const _ListingsSection();
+  const _ListingsSection({this.locked = false});
+
+  /// Preview mode when the class isn't unlocked yet — shows the catalog but
+  /// can't buy, so players see what they're working toward.
+  final bool locked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -386,7 +395,9 @@ class _ListingsSection extends ConsumerWidget {
           );
         }
         return Column(
-          children: [for (final l in rows) _ListingTile(listing: l)],
+          children: [
+            for (final l in rows) _ListingTile(listing: l, locked: locked)
+          ],
         );
       },
     );
@@ -394,9 +405,10 @@ class _ListingsSection extends ConsumerWidget {
 }
 
 class _ListingTile extends ConsumerWidget {
-  const _ListingTile({required this.listing});
+  const _ListingTile({required this.listing, this.locked = false});
 
   final CompanyListing listing;
+  final bool locked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -408,10 +420,14 @@ class _ListingTile extends ConsumerWidget {
             style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Text('${listing.industryId.toUpperCase()} · Level ${listing.level} '
             '· ${Fmt.moneyCompact(listing.revenueRate)}/yr revenue'),
-        trailing: FilledButton(
-          onPressed: canAfford ? () => _buy(context, ref) : null,
-          child: Text(Fmt.moneyCompact(listing.valuation)),
-        ),
+        trailing: locked
+            ? Chip(
+                label: Text(Fmt.moneyCompact(listing.valuation)),
+                visualDensity: VisualDensity.compact)
+            : FilledButton(
+                onPressed: canAfford ? () => _buy(context, ref) : null,
+                child: Text(Fmt.moneyCompact(listing.valuation)),
+              ),
       ),
     );
   }

@@ -15,6 +15,7 @@ import '../../../core/widgets/price_flash.dart';
 import '../../../core/widgets/tutorial_tip.dart';
 import '../../companies/presentation/companies_tab.dart';
 import '../../predictions/presentation/predictions_section.dart';
+import '../../properties/presentation/properties_section.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../trading/data/trading_repository.dart';
 import '../data/market_repository.dart';
@@ -69,9 +70,7 @@ class MarketScreen extends ConsumerWidget {
           ),
           _MarketList(
             classIds: {'real_estate'},
-            banner: '🏢 Property funds — steadier, income-style assets. '
-                'Direct property ownership with weekly rental income is on '
-                'the roadmap.',
+            leading: PropertiesSection(),
           ),
           CompaniesTab(),
           _MarketList(
@@ -199,11 +198,16 @@ class _MarketList extends ConsumerWidget {
     required this.classIds,
     this.showMovers = false,
     this.banner,
+    this.leading,
   });
 
   final Set<String> classIds;
   final bool showMovers;
   final String? banner;
+
+  /// Optional widget rendered above the asset list (e.g. property ownership on
+  /// the Real Estate tab).
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -255,6 +259,7 @@ class _MarketList extends ConsumerWidget {
           },
           child: ListView(
             children: [
+              ?leading,
               const TutorialTip(
                 id: 'market_list',
                 text: 'This is the market. Tap any asset to see its chart and '
