@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/crates/data/crates_repository.dart';
 import '../features/leverage/data/leverage_repository.dart';
 import '../features/market/data/market_repository.dart';
 import '../features/market/domain/market_event.dart';
@@ -151,6 +152,14 @@ class ShellScreen extends ConsumerWidget {
     _listenForLeveragedCloses(context, ref);
     _listenForLevelUp(context, ref);
     _maybePromptDaily(context, ref);
+    final crateCount = ref.watch(unopenedCratesProvider).value?.length ?? 0;
+    // Profile is the last destination (index 4); badge it when crates wait.
+    Widget navIcon(int i) {
+      final icon = Icon(_destinations[i].icon);
+      return (i == 4 && crateCount > 0)
+          ? Badge(label: Text('$crateCount'), child: icon)
+          : icon;
+    }
     final wide = MediaQuery.sizeOf(context).width >= 800;
     if (wide) {
       return Scaffold(
@@ -161,9 +170,9 @@ class ShellScreen extends ConsumerWidget {
               onDestinationSelected: shell.goBranch,
               labelType: NavigationRailLabelType.all,
               destinations: [
-                for (final d in _destinations)
+                for (final (i, d) in _destinations.indexed)
                   NavigationRailDestination(
-                    icon: Icon(d.icon),
+                    icon: navIcon(i),
                     label: Text(d.label),
                   ),
               ],
@@ -196,8 +205,8 @@ class ShellScreen extends ConsumerWidget {
         selectedIndex: shell.currentIndex,
         onDestinationSelected: shell.goBranch,
         destinations: [
-          for (final d in _destinations)
-            NavigationDestination(icon: Icon(d.icon), label: d.label),
+          for (final (i, d) in _destinations.indexed)
+            NavigationDestination(icon: navIcon(i), label: d.label),
         ],
       ),
     );
