@@ -15,6 +15,28 @@ class ReleaseNote {
 
 const releaseNotes = <ReleaseNote>[
   ReleaseNote(
+    title: 'Build a business empire',
+    date: '2026-07-23',
+    highlights: [
+      'New Companies tier: unlock it to found your own company or acquire an established one.',
+      'Run your business through strategic decisions — reinvest in R&D, marketing or expansion.',
+      'Weather events like rival price wars, lawsuits and demand booms.',
+      'Business revenue is collected alongside your dividends and rent.',
+      'Your empire builds your net worth on its own track, separate from the season leaderboard.',
+    ],
+  ),
+  ReleaseNote(
+    title: 'Passive income & browsable markets',
+    date: '2026-07-23',
+    highlights: [
+      'Earn while you sleep: dividend stocks and property REITs now pay income you collect on the Portfolio tab.',
+      'A projected “per day” income figure and a lifetime-earned total.',
+      'Browse locked markets: preview Crypto, Forex and Companies before you unlock them.',
+      'Fix: predictions no longer freeze after your phone locks.',
+      'Fix: your display currency (e.g. Rand) now refreshes on its own instead of sticking.',
+    ],
+  ),
+  ReleaseNote(
     title: 'Trading & protection polish',
     date: '2026-07-22',
     highlights: [

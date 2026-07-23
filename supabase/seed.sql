@@ -365,3 +365,7 @@ update public.assets set income_yield = 0.050 where symbol in ('DWTN','WRHS');
 update public.assets set income_yield = 0.055 where symbol = 'SUBH';
 update public.assets set income_yield = 0.045 where symbol = 'MALL';
 update public.assets set income_yield = 0.065 where symbol = 'ISLE';
+
+-- Dividend news only for dividend-payers (migration 43 mirror; the migration's
+-- UPDATE no-ops on a fresh reset because templates seed after migrations run).
+update public.event_templates set requires_income = true where code = 'dividend_hike';

@@ -429,10 +429,19 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                               return const SizedBox.shrink();
                             }
                             final t = window[index].bucket;
+                            final hhmm =
+                                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+                            // When the visible range covers more than a day, a
+                            // bare time is ambiguous — prefix the date.
+                            final spansDays = window.isNotEmpty &&
+                                window.last.bucket
+                                        .difference(window.first.bucket)
+                                        .inHours >
+                                    20;
                             return Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Text(
-                                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
+                                spansDays ? '${t.day}/${t.month} $hhmm' : hhmm,
                                 style: const TextStyle(fontSize: 10),
                               ),
                             );
