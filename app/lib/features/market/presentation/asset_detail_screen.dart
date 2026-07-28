@@ -122,6 +122,13 @@ class AssetDetailScreen extends ConsumerWidget {
                 _Stat(
                     label: 'Spread',
                     value: '${(asset.spread * 100).toStringAsFixed(2)}%'),
+                // How hard your own order pushes the price. Thin books are
+                // where "I bought and it spiked" comes from.
+                Tooltip(
+                  message: asset.depthHint,
+                  triggerMode: TooltipTriggerMode.tap,
+                  child: _Stat(label: 'Depth', value: asset.depthLabel),
+                ),
                 const ConceptChip(Concepts.spread),
                 const ConceptChip(Concepts.meanReversion),
               ],

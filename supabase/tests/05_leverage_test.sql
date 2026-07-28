@@ -73,8 +73,11 @@ select is(liquidation_price, round(182.6825 * 0.9, 4),
 select is(status, 'completed', 'use_leverage mission completed')
   from user_missions where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
    and mission_id = (select id from missions where code = 'use_leverage');
-select ok((select flow from assets where symbol = 'GOGL') > 9000,
-  'full notional pushed into market flow');
+select is(
+  (select round(flow, 2) from assets where symbol = 'GOGL'),
+  (select round(quantity * entry_price * game.config_numeric('leverage_flow_factor'), 2)
+     from leveraged_positions where status = 'open'),
+  'notional reaches the book scaled by leverage_flow_factor');
 
 -- Net worth marks leveraged equity (tick recomputes both sides identically).
 select game.market_tick();

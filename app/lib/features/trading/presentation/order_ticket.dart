@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -73,10 +75,42 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
 
   @override
   void dispose() {
+    _impactDebounce?.cancel();
     _quantity.dispose();
     _amount.dispose();
     _trigger.dispose();
     super.dispose();
+  }
+
+  // --- Market impact -------------------------------------------------------
+  // Big orders move the price against you. The server quotes how far (the
+  // parameters behind it are hidden), so we ask it on a debounce as the size
+  // changes rather than letting the fill be a surprise.
+  Timer? _impactDebounce;
+  double? _impact;
+  double _impactForNotional = -1;
+
+  void _refreshImpact(double notional) {
+    if ((notional - _impactForNotional).abs() < 0.01) return;
+    _impactForNotional = notional;
+    _impactDebounce?.cancel();
+    if (notional <= 0) {
+      if (_impact != null) setState(() => _impact = null);
+      return;
+    }
+    _impactDebounce = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final v = await ref.read(tradingRepositoryProvider).estimatePriceImpact(
+              assetId: widget.asset.id,
+              side: widget.side,
+              notional: notional,
+            );
+        if (mounted) setState(() => _impact = v);
+      } catch (_) {
+        // A quote is a nicety — never block the ticket on it.
+        if (mounted) setState(() => _impact = null);
+      }
+    });
   }
 
   bool get _isBuy => widget.side == 'buy';
@@ -139,6 +173,10 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
     final estNotional = estPrice * qty;
     final cash = profile?.cashBalance ?? 0;
     final held = holding?.quantity ?? 0;
+
+    // Queued orders fill later against a book we can't predict, so only quote
+    // impact for orders that hit the market right now.
+    _refreshImpact(_isPending ? 0 : estNotional);
 
     // Directionality: a limit buys below market, a stop buys above it.
     final directionOk = !_isPending
@@ -311,6 +349,46 @@ class _OrderTicketState extends ConsumerState<OrderTicket> {
               ),
             ],
           ),
+          if (!_isPending && (_impact ?? 0) >= 0.001) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Text('Market impact'),
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: '${asset.depthLabel}. ${asset.depthHint}',
+                      triggerMode: TooltipTriggerMode.tap,
+                      child: Icon(Icons.info_outline,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.outline),
+                    ),
+                  ],
+                ),
+                Text(
+                  '${_isBuy ? '+' : '−'}${(_impact! * 100).toStringAsFixed(2)}%',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: _impact! >= 0.01
+                        ? Colors.amber.shade700
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            if (_impact! >= 0.01) ...[
+              const SizedBox(height: 6),
+              Text(
+                'This order is large for ${asset.symbol}’s book — it will move '
+                'the price ${_isBuy ? 'up' : 'down'} about '
+                '${(_impact! * 100).toStringAsFixed(1)}% against you. Split it '
+                'up to fill closer to the quoted price.',
+                style: TextStyle(color: Colors.amber.shade700, fontSize: 12),
+              ),
+            ],
+          ],
           if (_isPending && trigger != null && !directionOk) ...[
             const SizedBox(height: 8),
             Text(

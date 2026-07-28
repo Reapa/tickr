@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +8,7 @@ import '../../../core/theme.dart';
 import '../../market/domain/asset.dart';
 import '../../missions/data/missions_repository.dart';
 import '../../profile/data/profile_repository.dart';
+import '../../trading/data/trading_repository.dart';
 import '../data/leverage_repository.dart';
 
 /// Opens the leveraged-position ticket for an asset.
@@ -44,6 +47,7 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
 
   @override
   void dispose() {
+    _impactDebounce?.cancel();
     _margin.dispose();
     super.dispose();
   }
@@ -51,6 +55,37 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
   /// The stake in USD — the field is typed in the display currency.
   double get _marginValue =>
       Fmt.toUsd(double.tryParse(_margin.text) ?? 0).toDouble();
+
+  // A leveraged ticket is the easiest way to accidentally hit the market with
+  // far more notional than you meant to, so quote the push before opening.
+  Timer? _impactDebounce;
+  double? _impact;
+  double _impactFor = -1;
+  String _impactSide = '';
+
+  void _refreshImpact(double notional, String side) {
+    if ((notional - _impactFor).abs() < 0.01 && side == _impactSide) return;
+    _impactFor = notional;
+    _impactSide = side;
+    _impactDebounce?.cancel();
+    if (notional <= 0) {
+      if (_impact != null) setState(() => _impact = null);
+      return;
+    }
+    _impactDebounce = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final v = await ref.read(tradingRepositoryProvider).estimatePriceImpact(
+              assetId: widget.asset.id,
+              side: side,
+              notional: notional,
+              leveraged: true,
+            );
+        if (mounted) setState(() => _impact = v);
+      } catch (_) {
+        if (mounted) setState(() => _impact = null);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +99,8 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
     final notional = _marginValue * _leverage;
     final liq = entry * (1 + (isLong ? -1.0 : 1.0) / _leverage);
     final liqMovePct = 100 / _leverage;
+
+    _refreshImpact(notional, _side);
 
     int requiredLevel(int lev) => lev == 100 ? 10 : (lev == 50 ? 5 : 1);
 
@@ -142,6 +179,12 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
           _Row('Position size',
               '${Fmt.money(notional)} (${Fmt.quantity(notional / entry)} units)'),
           _Row('Entry (est.)', Fmt.money(entry)),
+          if ((_impact ?? 0) >= 0.001)
+            _Row(
+              'Market impact (${asset.depthLabel.toLowerCase()})',
+              '${isLong ? '+' : '−'}${(_impact! * 100).toStringAsFixed(2)}%',
+              color: _impact! >= 0.01 ? Colors.amber.shade700 : null,
+            ),
           _Row('Max loss', Fmt.money(_marginValue),
               color: AppTheme.down),
           Container(

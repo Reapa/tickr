@@ -73,6 +73,24 @@ class TradingRepository {
     return OrderReceipt.fromJson(json);
   }
 
+  /// How far this order would push the price, as a fraction (0.005 = 0.5%).
+  /// Quoted by the server against the live book, because the parameters that
+  /// determine it are deliberately hidden from clients.
+  Future<double> estimatePriceImpact({
+    required String assetId,
+    required String side,
+    required double notional,
+    bool leveraged = false,
+  }) async {
+    final v = await _client.rpc<dynamic>('estimate_price_impact', params: {
+      'p_asset_id': assetId,
+      'p_side': side,
+      'p_notional': notional,
+      'p_leveraged': leveraged,
+    });
+    return jsonDouble(v);
+  }
+
   /// Set a take-profit and/or stop-loss on a held position. The server
   /// stores them as pending sell orders the tick engine executes.
   Future<Map<String, dynamic>> setPositionProtection({

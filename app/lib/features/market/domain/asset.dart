@@ -16,6 +16,7 @@ class Asset {
     required this.isActive,
     required this.marketHours,
     this.incomeYield = 0,
+    this.depthTier = 'normal',
   });
 
   factory Asset.fromJson(Map<String, dynamic> json) => Asset(
@@ -30,6 +31,7 @@ class Asset {
         isActive: (json['is_active'] as bool?) ?? true,
         marketHours: (json['market_hours'] as String?) ?? 'weekday_day',
         incomeYield: jsonDouble(json['income_yield']),
+        depthTier: (json['depth_tier'] as String?) ?? 'normal',
       );
 
   final String id;
@@ -54,6 +56,26 @@ class Asset {
 
   /// The label a payout from this asset carries.
   bool get isRentAsset => classId == 'real_estate';
+
+  /// Coarse book depth: 'deep' | 'normal' | 'thin'. Thin books move further on
+  /// the same order size — the public face of the hidden liquidity parameter.
+  final String depthTier;
+
+  bool get isThinlyTraded => depthTier == 'thin';
+
+  String get depthLabel => switch (depthTier) {
+        'deep' => 'Deep book',
+        'thin' => 'Thin book',
+        _ => 'Normal book',
+      };
+
+  /// Why a player should care, in one line.
+  String get depthHint => switch (depthTier) {
+        'deep' => 'Heavily traded. Even large orders barely move the price.',
+        'thin' => 'Thinly traded. Large orders push the price against you — '
+            'size down or expect slippage.',
+        _ => 'Averagely traded. Only very large orders move the price.',
+      };
 
   /// Forex pairs quote a ratio between two currencies, so their price must not
   /// be re-denominated by the player's display currency.
@@ -111,6 +133,7 @@ class Asset {
         isActive: isActive,
         marketHours: marketHours,
         incomeYield: incomeYield,
+        depthTier: depthTier,
       );
 }
 

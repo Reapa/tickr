@@ -15,6 +15,23 @@ class ReleaseNote {
 
 const releaseNotes = <ReleaseNote>[
   ReleaseNote(
+    title: 'Markets that behave like markets',
+    date: '2026-07-28',
+    highlights: [
+      'Fixed: large orders — especially leveraged ones — no longer send the price flying. '
+          'A \$200k ticket used to move a blue chip over 4%; now it moves it about 0.5%.',
+      'Price impact is now realistic: it grows with the square root of your size instead of '
+          'jumping straight to the maximum, so there is real ground between a small trade '
+          'and a whale trade.',
+      'Every market got a proper order book. Deep names barely flinch; thin ones still move — '
+          'and now you can see which is which.',
+      'New “Depth” stat on every asset, and a live “Market impact” quote in the buy/sell and '
+          'leverage tickets so you know what your order will do before you send it.',
+      'Leveraged positions hit the market at a sensible size instead of their full face '
+          'notional — 50× no longer means 50× the market pressure.',
+    ],
+  ),
+  ReleaseNote(
     title: 'Build a business empire',
     date: '2026-07-23',
     highlights: [

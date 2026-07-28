@@ -369,3 +369,18 @@ update public.assets set income_yield = 0.065 where symbol = 'ISLE';
 -- Dividend news only for dividend-payers (migration 43 mirror; the migration's
 -- UPDATE no-ops on a fresh reset because templates seed after migrations run).
 update public.event_templates set requires_income = true where code = 'dividend_hike';
+
+-- ----------------------------------------------------------------------------
+-- Market-depth recalibration (migration 20260722000025). Same seed-timing story
+-- as the volatility scaling above: liquidity is a reference NOTIONAL under the
+-- square-root impact law, so the seed's five-figure values have to be lifted to
+-- realistic book depth. Multiplicative per class to preserve relative depth.
+-- ----------------------------------------------------------------------------
+update public.assets
+   set liquidity = round((liquidity *
+         case class_id when 'stocks'      then 125
+                       when 'real_estate' then 40
+                       when 'crypto'      then 60
+                       when 'forex'       then 500
+                       when 'companies'   then 20
+                       else 100 end)::numeric, 4);
