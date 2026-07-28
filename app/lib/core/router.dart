@@ -9,6 +9,7 @@ import '../features/arcade/presentation/arcade_screen.dart';
 import '../features/auth/presentation/sign_in_screen.dart';
 import '../features/competition/presentation/compete_screen.dart';
 import '../features/fishing/presentation/fishery_screen.dart';
+import '../features/slots/presentation/slots_screen.dart';
 import '../features/market/presentation/asset_detail_screen.dart';
 import '../features/market/presentation/market_screen.dart';
 import '../features/missions/presentation/missions_screen.dart';
@@ -75,6 +76,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'fishery',
             builder: (context, state) => const FisheryScreen(),
+          ),
+          GoRoute(
+            path: 'slots',
+            builder: (context, state) => const SlotsScreen(),
           ),
         ],
       ),

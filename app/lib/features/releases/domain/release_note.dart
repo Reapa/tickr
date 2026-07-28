@@ -15,6 +15,28 @@ class ReleaseNote {
 
 const releaseNotes = <ReleaseNote>[
   ReleaseNote(
+    title: 'The Arcade: fishing, slots and sound',
+    date: '2026-07-28',
+    highlights: [
+      'New Arcade — somewhere to go when the markets are closed or you are waiting on '
+          'a position. Find it in the top bar of any screen.',
+      'THE FISHERY: your boat fishes while you are away and fills a hold. Come back, '
+          'sell the catch, upgrade your boat and rod, and reach deeper water where the '
+          'rare fish live.',
+      'Cast a line by hand using bait that refills on a timer — the thing to actually '
+          'do while the stock market is shut.',
+      'Fifteen species from Sardine to Coelacanth, with a permanent catch log tracking '
+          'every one you have landed and your personal best. Epic and legendary catches '
+          'drop a reward crate.',
+      'SLOTS: three reels, a 500× jackpot, and the full payout table and true '
+          'return-to-player published on screen. The house edge is real and stated.',
+      'Neither game can affect your season leaderboard position — arcade results sit on '
+          'your business net worth, so a season is still won by trading alone.',
+      'SOUND: the app has audio for the first time. Off by default — turn it on from '
+          'Profile or the speaker icon in either game.',
+    ],
+  ),
+  ReleaseNote(
     title: 'Markets that behave like markets',
     date: '2026-07-28',
     highlights: [

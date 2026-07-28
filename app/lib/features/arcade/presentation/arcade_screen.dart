@@ -6,6 +6,7 @@ import '../../../core/format.dart';
 import '../../../core/sound.dart';
 import '../../../core/theme.dart';
 import '../../fishing/data/fishing_repository.dart';
+import '../../slots/data/slots_repository.dart';
 
 /// The Arcade — somewhere to go when the markets are shut, you're waiting on a
 /// position, or you just want to do something that isn't a chart.
@@ -19,6 +20,7 @@ class ArcadeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fishery = ref.watch(fisheryProvider).value;
+    final odds = ref.watch(slotOddsProvider).value;
 
     return Scaffold(
       appBar: AppBar(
@@ -54,14 +56,19 @@ class ArcadeScreen extends ConsumerWidget {
             onTap: () => context.go('/arcade/fishery'),
           ),
           const SizedBox(height: 12),
-          const _GameCard(
+          _GameCard(
             title: 'Slots',
             tagline: 'Three reels, one lever, and a payout table that is '
                 'honest about the house edge.',
             icon: Icons.casino_outlined,
-            colors: [Color(0xFF3B1F5C), Color(0xFF8E3FA8)],
-            status: 'Coming soon',
-            onTap: null,
+            colors: const [Color(0xFF3B1F5C), Color(0xFF8E3FA8)],
+            status: odds == null
+                ? null
+                : '${(odds.rtp * 100).toStringAsFixed(0)}% RTP · '
+                    'jackpot ${odds.symbols.map((s) => s.pay3).reduce(
+                          (a, b) => a > b ? a : b,
+                        ).toStringAsFixed(0)}×',
+            onTap: () => context.go('/arcade/slots'),
           ),
         ],
       ),
