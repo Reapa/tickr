@@ -29,6 +29,10 @@ const releaseNotes = <ReleaseNote>[
           'leverage tickets so you know what your order will do before you send it.',
       'Leveraged positions hit the market at a sensible size instead of their full face '
           'notional — 50× no longer means 50× the market pressure.',
+      'Fixed: leveraged trades now show their realized profit and loss in your Portfolio '
+          'activity, and Compete shows how margin bets ended — including liquidations.',
+      'Fixed: the leverage ticket now fits on a phone screen — the open button no longer '
+          'sits off the bottom.',
     ],
   ),
   ReleaseNote(
