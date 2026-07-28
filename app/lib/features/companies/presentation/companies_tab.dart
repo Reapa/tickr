@@ -151,15 +151,16 @@ class _CompanyCard extends ConsumerWidget {
             Text('${company.industryId.toUpperCase()} · Level ${company.level}',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
             const SizedBox(height: 10),
-            Row(
+            // Wrap, not Row: three money figures overflow a narrow phone.
+            Wrap(
+              spacing: 20,
+              runSpacing: 8,
               children: [
                 _Stat(label: 'Valuation', value: Fmt.moneyCompact(company.valuation)),
-                const SizedBox(width: 20),
                 _Stat(
                     label: 'Revenue',
                     value: '${Fmt.moneyCompact(company.revenueRate)}/yr',
                     color: AppTheme.up),
-                const SizedBox(width: 20),
                 _Stat(label: 'Income', value: '~${Fmt.money(perDay)}/day'),
               ],
             ),
@@ -190,17 +191,17 @@ class _CompanyCard extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Sell ${company.name}?'),
         content: Text(
             'Sell the business for cash at roughly its valuation (a 10% '
             'liquidity haircut applies). You lose the company and its income.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Keep')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Sell')),
         ],
       ),
@@ -436,16 +437,16 @@ class _ListingTile extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Acquire ${listing.name}?'),
         content: Text('Buy this business for ${Fmt.money(listing.valuation)}. '
             'It starts earning ${Fmt.money(listing.revenueRate)}/yr immediately.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancel')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Acquire')),
         ],
       ),

@@ -83,15 +83,17 @@ class _PropertyCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Row(
+            // Wrap, not Row: three money figures plus fixed spacers overflow a
+            // narrow phone, and an overflowing Row just clips the last stat.
+            Wrap(
+              spacing: 20,
+              runSpacing: 8,
               children: [
                 _Stat(label: 'Value', value: Fmt.moneyCompact(property.value)),
-                const SizedBox(width: 20),
                 _Stat(
                     label: 'Rent',
                     value: '${Fmt.moneyCompact(property.rentRate)}/yr',
                     color: AppTheme.up),
-                const SizedBox(width: 20),
                 _Stat(label: 'Income', value: '~${Fmt.money(perDay)}/day'),
               ],
             ),
@@ -113,17 +115,17 @@ class _PropertyCard extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Sell ${property.name}?'),
         content: const Text(
             'Sell the property for cash at roughly its value (a 5% liquidity '
             'haircut applies). You lose the rent.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Keep')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Sell')),
         ],
       ),
@@ -216,16 +218,16 @@ class _ListingTile extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Buy ${listing.name}?'),
         content: Text('Purchase for ${Fmt.money(listing.value)}. It starts '
             'earning ${Fmt.money(listing.rentRate)}/yr in rent immediately.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancel')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Buy')),
         ],
       ),

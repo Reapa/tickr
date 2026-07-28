@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/back_or_home.dart';
 import '../../../core/feedback.dart';
 import '../../../core/format.dart';
 import '../../../core/sound.dart';
@@ -161,6 +162,7 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen>
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackOrHome(home: '/arcade'),
         title: const Text('The Fishery'),
         actions: [
           IconButton(

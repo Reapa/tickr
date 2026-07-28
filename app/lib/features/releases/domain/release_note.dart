@@ -15,6 +15,19 @@ class ReleaseNote {
 
 const releaseNotes = <ReleaseNote>[
   ReleaseNote(
+    title: 'Purchase and navigation fixes',
+    date: '2026-07-29',
+    highlights: [
+      'Fixed: confirming a property or company purchase showed a blank screen and did '
+          'not buy anything. The confirm button was closing the page instead of the '
+          'dialog.',
+      'Fixed: opening a game from the Arcade left you with no way back out.',
+      'Every Arcade screen now always has a way out, even if you reload the page '
+          'directly onto it.',
+      'Property and company cards no longer clip their figures on narrow phones.',
+    ],
+  ),
+  ReleaseNote(
     title: 'Trade markers, and a round of fixes',
     date: '2026-07-28',
     highlights: [

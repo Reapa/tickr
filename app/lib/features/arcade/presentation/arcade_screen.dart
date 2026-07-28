@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/back_or_home.dart';
 import '../../../core/format.dart';
 import '../../../core/sound.dart';
 import '../../../core/theme.dart';
@@ -24,6 +25,7 @@ class ArcadeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackOrHome(),
         title: const Text('Arcade'),
         actions: const [_SoundToggle()],
       ),
@@ -53,7 +55,10 @@ class ArcadeScreen extends ConsumerWidget {
                         : '${fishery.holdCount}/${fishery.holdCapacity} aboard '
                             '· ${Fmt.money(fishery.holdValue)}',
             highlight: fishery?.holdIsFull ?? false,
-            onTap: () => context.go('/arcade/fishery'),
+            // push, NOT go: `go` replaces the whole stack, which left the game
+            // as the only route — no back entry, so the AppBar had no back
+            // button and there was no way out of the Arcade.
+            onTap: () => context.push('/arcade/fishery'),
           ),
           const SizedBox(height: 12),
           _GameCard(
@@ -68,7 +73,7 @@ class ArcadeScreen extends ConsumerWidget {
                     'jackpot ${odds.symbols.map((s) => s.pay3).reduce(
                           (a, b) => a > b ? a : b,
                         ).toStringAsFixed(0)}×',
-            onTap: () => context.go('/arcade/slots'),
+            onTap: () => context.push('/arcade/slots'),
           ),
         ],
       ),
