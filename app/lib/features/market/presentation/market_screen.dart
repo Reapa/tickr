@@ -409,6 +409,13 @@ class _AssetTile extends ConsumerWidget {
                           const _MiniBadge(
                               text: 'CLOSED', color: Colors.orange),
                         ],
+                        // A thin book moves noticeably on your own order.
+                        // Better to know before you tap than after you fill.
+                        if (asset.isThinlyTraded) ...[
+                          const SizedBox(width: 6),
+                          const _MiniBadge(
+                              text: 'THIN', color: Colors.amber),
+                        ],
                       ],
                     ),
                     Text(asset.name,

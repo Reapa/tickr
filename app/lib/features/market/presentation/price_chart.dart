@@ -16,6 +16,28 @@ import '../domain/market_event.dart';
 /// A price level drawn across the chart: your buy-in, TP, or SL.
 typedef ChartMarker = ({double price, Color color, String label});
 
+/// Index of the candle whose bucket contains [at], or null when that falls
+/// outside the visible window [start, right).
+///
+/// Pure and top-level so the arithmetic behind the chart's trade markers can be
+/// tested without a widget: an off-by-one here silently plots a fill on the
+/// wrong candle, which is exactly the kind of thing nobody notices by eye.
+/// Epoch milliseconds throughout, so it is timezone-independent.
+int? candleIndexForTime(
+  DateTime at,
+  DateTime firstBucket,
+  int bucketSeconds, {
+  required int start,
+  required int right,
+}) {
+  if (bucketSeconds <= 0) return null;
+  final index = ((at.millisecondsSinceEpoch - firstBucket.millisecondsSinceEpoch) /
+          (bucketSeconds * 1000))
+      .floor();
+  if (index < start || index >= right) return null;
+  return index;
+}
+
 /// Trader-style price chart: line mode plus OHLC candles at selectable
 /// intervals (1m…1h). Overlays your position's average cost and any active
 /// take-profit / stop-loss levels in both modes.
@@ -52,6 +74,8 @@ class _PriceChartState extends ConsumerState<PriceChart> {
         .firstOrNull;
     final protection = (ref.watch(openOrdersProvider).value ?? const [])
         .where((o) => o.assetId == asset.id);
+    final hasTrades =
+        (ref.watch(myTradesProvider(asset.id)).value ?? const []).isNotEmpty;
 
     final markers = <ChartMarker>[
       if (holding != null)
@@ -108,12 +132,29 @@ class _PriceChartState extends ConsumerState<PriceChart> {
                   markers: markers,
                 ),
         ),
-        if (markers.isNotEmpty)
+        if (markers.isNotEmpty || hasTrades)
           Padding(
             padding: const EdgeInsets.only(left: 16, right: 16, top: 4),
             child: Wrap(
               spacing: 14,
+              runSpacing: 2,
               children: [
+                // Candle mode plots your fills as arrows; say so, otherwise
+                // they read as chart furniture.
+                if (hasTrades && _bucketSeconds != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.arrow_drop_up,
+                          size: 16, color: AppTheme.up),
+                      const Icon(Icons.arrow_drop_down,
+                          size: 16, color: AppTheme.down),
+                      const SizedBox(width: 2),
+                      Text('Your trades',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade400)),
+                    ],
+                  ),
                 for (final marker in markers)
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -238,6 +279,8 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
 
     // Equipped chart-theme cosmetic recolours the candles.
     final chart = equippedChartTheme(ref.watch(myProfileProvider).value?.equipped);
+    final trades =
+        ref.watch(myTradesProvider(widget.asset.id)).value ?? const <TradeMark>[];
 
     final total = candles.length;
     // Guard: with fewer than 8 candles the lower bound would exceed total.
@@ -317,6 +360,22 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
               (constraints.maxHeight - _kBottomAxis).clamp(1.0, double.infinity);
           final span = (maxY - minY).abs() < 1e-9 ? 1.0 : maxY - minY;
           double yForPrice(double price) => (maxY - price) / span * plotHeight;
+
+          // Map a fill's timestamp to its X pixel: find its candle, shift into
+          // the visible window, then scale through the same 0..maxX domain the
+          // chart is drawn in. Null for fills outside the window — those simply
+          // aren't drawn.
+          double? xForTime(DateTime at) {
+            final index = candleIndexForTime(
+              at,
+              candles.first.bucket,
+              widget.bucketSeconds,
+              start: start,
+              right: right,
+            );
+            if (index == null) return null;
+            return (index - start) / maxX * chartWidth;
+          }
           return Stack(
             children: [
               // Listener catches the raw pointer-up even when the gesture is
@@ -481,6 +540,20 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
                 ),
                 ),
               ),
+              // Your own fills, plotted where they actually happened. Drawn as
+              // an overlay rather than through fl_chart's scatter API so they
+              // survive the pan/zoom transform and stay tappable.
+              for (final t in trades)
+                if (xForTime(t.at) case final x?)
+                  Positioned(
+                    left: (x - 7).clamp(-7.0, chartWidth),
+                    top: (yForPrice(t.price) - 7)
+                        .clamp(-7.0, plotHeight - 7),
+                    child: _TradeMarker(
+                      trade: t,
+                      isForex: widget.asset.isForex,
+                    ),
+                  ),
               // Zoom / pan controls.
               Positioned(
                 top: 0,
@@ -547,6 +620,42 @@ class _CandleModeState extends ConsumerState<_CandleMode> {
 
 /// A grab handle for a take-profit / stop-loss line, sitting in the price
 /// gutter. Vertical drags move the level; release commits it.
+/// One of your fills on the chart: a small arrow at the price and moment it
+/// executed. Green up for a buy, red down for a sell. Tap for the detail —
+/// on a phone there is no room to label every point.
+class _TradeMarker extends StatelessWidget {
+  const _TradeMarker({required this.trade, required this.isForex});
+
+  final TradeMark trade;
+  final bool isForex;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = trade.isBuy ? AppTheme.up : AppTheme.down;
+    return Tooltip(
+      message: '${trade.isBuy ? 'Bought' : 'Sold'} '
+          '${Fmt.quantity(trade.quantity)} @ '
+          '${isForex ? Fmt.quote(trade.price) : Fmt.price(trade.price)}\n'
+          '${Fmt.timeAgo(trade.at)}',
+      triggerMode: TooltipTriggerMode.tap,
+      child: SizedBox(
+        width: 14,
+        height: 14,
+        child: Center(
+          child: Icon(
+            trade.isBuy ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+            size: 22,
+            color: color,
+            shadows: const [
+              Shadow(color: Colors.black87, blurRadius: 2),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ProtectionHandle extends StatelessWidget {
   const _ProtectionHandle({
     required this.label,

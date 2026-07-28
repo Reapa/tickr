@@ -15,6 +15,21 @@ class ReleaseNote {
 
 const releaseNotes = <ReleaseNote>[
   ReleaseNote(
+    title: 'Trade markers, and a round of fixes',
+    date: '2026-07-28',
+    highlights: [
+      'Your own trades now show on the candle chart — a green arrow where you bought, '
+          'a red one where you sold. Tap any of them for the size, price and time.',
+      'Thinly traded assets are flagged with a THIN badge in the market list, so you '
+          'know before you tap that a big order will move the price.',
+      'Fixed: the fishing boat was never actually catching anything while you were '
+          'away. It is now — your hold fills properly.',
+      'Fixed: a hole that let any signed-in account drive the market simulation.',
+      'The Portfolio net-worth chart loads dramatically faster — it was downloading '
+          'every five-second sample of the whole week to draw one small chart.',
+    ],
+  ),
+  ReleaseNote(
     title: 'The Arcade: fishing, slots and sound',
     date: '2026-07-28',
     highlights: [

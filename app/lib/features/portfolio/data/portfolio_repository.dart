@@ -20,6 +20,32 @@ class NetWorthPoint {
   final DateTime time;
 }
 
+/// One of your fills, plotted on the price chart at the moment and price it
+/// happened. Distinct from [ChartMarker], which draws a horizontal price LEVEL
+/// — this is a point in time.
+class TradeMark {
+  const TradeMark({
+    required this.side,
+    required this.quantity,
+    required this.price,
+    required this.at,
+  });
+
+  factory TradeMark.fromJson(Map<String, dynamic> json) => TradeMark(
+        side: json['side'] as String,
+        quantity: jsonDouble(json['quantity']),
+        price: jsonDouble(json['price']),
+        at: jsonDate(json['created_at']),
+      );
+
+  final String side; // buy | sell
+  final double quantity;
+  final double price;
+  final DateTime at;
+
+  bool get isBuy => side == 'buy';
+}
+
 /// One row of personal activity. Spot orders and leveraged positions live in
 /// separate tables server-side; `get_my_recent_trades` unions them into this
 /// single shape so realized P/L shows for both (see migration
@@ -315,6 +341,18 @@ class PortfolioRepository {
     return controller.stream;
   }
 
+  /// Your own fills on one asset, newest first — the points plotted on the
+  /// candle chart so you can see where you actually got in and out.
+  Future<List<TradeMark>> fetchMyTrades(String assetId, {int limit = 60}) async {
+    final rows = await _client
+        .from('trades')
+        .select('side, quantity, price, created_at')
+        .eq('asset_id', assetId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return rows.map(TradeMark.fromJson).toList();
+  }
+
   /// The net-worth chart series, bucketed server-side.
   ///
   /// This used to select the whole retained week straight from the table with
@@ -355,6 +393,14 @@ final ledgerProvider = FutureProvider<List<LedgerEntry>>(
 final recentOrdersProvider = FutureProvider<List<OrderRow>>(
   (ref) => ref.watch(portfolioRepositoryProvider).fetchRecentOrders(),
 );
+
+/// Your fills on one asset, for the chart's trade markers.
+final myTradesProvider =
+    FutureProvider.family<List<TradeMark>, String>((ref, assetId) async {
+  // Re-pulls whenever an order completes, so a fresh buy shows up immediately.
+  ref.watch(recentOrdersProvider);
+  return ref.watch(portfolioRepositoryProvider).fetchMyTrades(assetId);
+});
 
 final netWorthHistoryProvider = FutureProvider<List<NetWorthPoint>>(
   (ref) => ref.watch(portfolioRepositoryProvider).fetchNetWorthHistory(),
