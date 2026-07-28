@@ -315,18 +315,26 @@ class PortfolioRepository {
     return controller.stream;
   }
 
+  /// The net-worth chart series, bucketed server-side.
+  ///
+  /// This used to select the whole retained week straight from the table with
+  /// no limit. At tick resolution that was ~121,000 rows per player — several
+  /// megabytes downloaded to a phone to draw a chart a few hundred pixels
+  /// wide. The RPC returns at most [buckets] points whatever the range, so the
+  /// payload is set by the chart's resolution rather than by how long someone
+  /// has been playing. The range chips still filter client-side from this.
   Future<List<NetWorthPoint>> fetchNetWorthHistory({
-    // Fetch the full retained week so the chart's range chips can filter
-    // client-side without extra round trips.
     Duration window = const Duration(days: 7),
+    int buckets = 300,
   }) async {
-    final since = DateTime.now().toUtc().subtract(window);
-    final rows = await _client
-        .from('net_worth_history')
-        .select('net_worth, tick_at')
-        .gte('tick_at', since.toIso8601String())
-        .order('tick_at', ascending: true);
-    return rows.map(NetWorthPoint.fromJson).toList();
+    final rows = await _client.rpc<List<dynamic>>(
+      'get_net_worth_series',
+      params: {'p_hours': window.inHours, 'p_buckets': buckets},
+    );
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(NetWorthPoint.fromJson)
+        .toList();
   }
 }
 

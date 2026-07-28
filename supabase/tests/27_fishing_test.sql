@@ -8,7 +8,7 @@ set search_path = public, extensions, game;
 
 select pg_advisory_xact_lock(hashtext('game.market_tick'));
 
-select plan(21);
+select plan(24);
 
 insert into auth.users (instance_id, id, aud, role, email, raw_user_meta_data)
 values ('00000000-0000-0000-0000-000000000000',
@@ -50,6 +50,58 @@ select game.accrue_fishing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
 select is((select count(*)::int from fishery_hold
             where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 0,
   'an emptied hold does not instantly refill from banked time');
+
+-- ---------------------------------------------------------------------------
+-- THE PRODUCTION PATH: many small cron runs, not one big gap.
+--
+-- The original accrual floored elapsed*rate to whole fish and then threw the
+-- remainder away with the clock. A 5-minute cron run on a 2/hour boat scores
+-- floor(0.167) = 0, so progress reset every run and the hold NEVER filled.
+-- The single-30-day-gap assertions above all passed while idle fishing was
+-- completely dead. Replay the real cadence.
+-- ---------------------------------------------------------------------------
+delete from public.fishery_hold where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+update public.user_fishery set last_accrued_at = now()
+ where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+do $$
+declare i int;
+begin
+  -- 72 runs x 5 minutes = 6 hours, which is one full hold on any boat.
+  for i in 1..72 loop
+    update public.user_fishery
+       set last_accrued_at = last_accrued_at - interval '5 minutes'
+     where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    perform game.accrue_fishing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  end loop;
+end $$;
+
+select ok((select count(*) from fishery_hold
+            where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') >= 10,
+  'six hours of 5-minute cron runs fills the hold (sub-fish remainder carries)');
+
+-- ...and it still cannot overfill or bank time beyond the cap.
+do $$
+declare i int;
+begin
+  for i in 1..72 loop
+    update public.user_fishery
+       set last_accrued_at = last_accrued_at - interval '5 minutes'
+     where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    perform game.accrue_fishing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  end loop;
+end $$;
+
+select is((select count(*)::int from fishery_hold
+            where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+  (select hold_capacity from fishing_gear where code = 'boat_row'),
+  'a further six hours cannot push the hold past capacity');
+
+delete from public.fishery_hold where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+select game.accrue_fishing('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+select is((select count(*)::int from fishery_hold
+            where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 0,
+  'the time spent full is forfeited, not redeemed as a windfall on sale');
 
 -- ---------------------------------------------------------------------------
 -- A rowboat only reaches shallow water. Deeper tiers are the real upgrade.
