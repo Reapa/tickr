@@ -22,6 +22,10 @@ select is(game.render_template('plain text', '{}'::jsonb), 'plain text',
 -- Pin the pool to a single positive template so the spawn is deterministic,
 -- then confirm the body gained a positive detail sentence. (Clear existing
 -- events first so pruning the templates doesn't trip the FK.)
+-- scheduled_events.resolved_event_id points at market_events, and the live
+-- pg_cron tick resolves real earnings between resets — so those rows have to
+-- go first or the delete below trips that FK instead.
+delete from public.scheduled_events;
 delete from public.market_events;
 delete from public.event_templates where code <> 'earnings_beat';
 update public.assets set current_price = 100.00 where symbol = 'GOGL';

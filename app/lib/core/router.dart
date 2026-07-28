@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../features/arcade/presentation/arcade_screen.dart';
 import '../features/auth/presentation/sign_in_screen.dart';
 import '../features/competition/presentation/compete_screen.dart';
+import '../features/fishing/presentation/fishery_screen.dart';
 import '../features/market/presentation/asset_detail_screen.dart';
 import '../features/market/presentation/market_screen.dart';
 import '../features/missions/presentation/missions_screen.dart';
@@ -63,6 +65,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/whats-new',
         builder: (context, state) => const ReleaseNotesScreen(),
+      ),
+      // The Arcade sits outside the tab shell: it's a place you step away to,
+      // not a peer of Market/Portfolio, and a sixth tab would crowd the bar.
+      GoRoute(
+        path: '/arcade',
+        builder: (context, state) => const ArcadeScreen(),
+        routes: [
+          GoRoute(
+            path: 'fishery',
+            builder: (context, state) => const FisheryScreen(),
+          ),
+        ],
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => ShellScreen(shell: shell),

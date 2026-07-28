@@ -7,6 +7,7 @@ import '../../../core/cosmetics.dart';
 import '../../../core/currency.dart';
 import '../../../core/currency_prefs.dart';
 import '../../../core/feedback.dart';
+import '../../../core/sound.dart';
 import '../../crates/presentation/crate_reveal.dart';
 import '../../milestones/presentation/milestone_widgets.dart';
 import '../../../core/tutorial.dart';
@@ -173,6 +174,29 @@ class ProfileScreen extends ConsumerWidget {
                     value: ref.watch(feedbackEnabledProvider),
                     onChanged: (v) =>
                         ref.read(feedbackEnabledProvider.notifier).set(v),
+                  ),
+                ),
+                Card(
+                  child: SwitchListTile(
+                    secondary: Icon(ref.watch(soundEnabledProvider)
+                        ? Icons.volume_up
+                        : Icons.volume_off),
+                    title: const Text('Sound effects'),
+                    subtitle:
+                        const Text('Arcade games, catches and payouts'),
+                    value: ref.watch(soundEnabledProvider),
+                    onChanged: (v) =>
+                        ref.read(soundEnabledProvider.notifier).set(v),
+                  ),
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.videogame_asset_outlined),
+                    title: const Text('Arcade'),
+                    subtitle: const Text(
+                        'The Fishery and other games — off the season board'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/arcade'),
                   ),
                 ),
                 Card(

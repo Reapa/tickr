@@ -10,6 +10,12 @@ select pg_advisory_xact_lock(hashtext('game.market_tick'));
 update public.game_config set value = 'true' where key = 'markets_always_open';
 update public.game_config set value = '0' where key = 'prediction_post_probability';
 
+-- The live pg_cron tick schedules real events between resets; those rows are
+-- committed and visible here, and they collide with the per-asset assertions
+-- below (two GOGL events, one assertion, two results). Start from an empty
+-- calendar - this transaction rolls back, so nothing real is lost.
+delete from public.scheduled_events;
+
 select plan(5);
 
 -- A rumour forced to confirm (confirm_chance 1).

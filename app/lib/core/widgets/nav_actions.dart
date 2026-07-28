@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/fishing/data/fishing_repository.dart';
 import '../../features/social/data/social_repository.dart';
 import '../theme.dart';
 
@@ -38,6 +39,23 @@ class TickrActions extends ConsumerWidget {
                 )
               : const Icon(Icons.group_outlined),
           onPressed: () => context.push('/friends'),
+        ),
+        // The Arcade badges itself when the fishing hold is full, so the pull
+        // to come back is visible from whatever screen you're on.
+        Consumer(
+          builder: (context, ref, _) {
+            final ready = ref.watch(fisheryProvider).value?.holdIsFull ?? false;
+            return IconButton(
+              tooltip: ready ? 'Arcade · catch ready to sell' : 'Arcade',
+              icon: ready
+                  ? const Badge(
+                      backgroundColor: AppTheme.gold,
+                      child: Icon(Icons.videogame_asset_outlined),
+                    )
+                  : const Icon(Icons.videogame_asset_outlined),
+              onPressed: () => context.push('/arcade'),
+            );
+          },
         ),
         IconButton(
           tooltip: 'Store',

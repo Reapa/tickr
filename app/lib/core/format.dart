@@ -83,6 +83,12 @@ abstract final class Fmt {
     return '$sign${value.toStringAsFixed(2)}%';
   }
 
+  /// A catch weight. Grams below a kilo, so a sardine reads as "340 g" rather
+  /// than "0.34 kg". Not currency — never converted by display currency.
+  static String weight(num kg) => kg < 1
+      ? '${(kg * 1000).round()} g'
+      : '${_grouped(kg, kg < 10 ? 1 : 0)} kg';
+
   /// A short live countdown, e.g. "3m 20s" / "45s" / "now".
   static String countdown(Duration d) {
     if (d.inSeconds <= 0) return 'now';

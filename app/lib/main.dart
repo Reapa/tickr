@@ -9,8 +9,10 @@ import 'core/currency_prefs.dart';
 import 'core/env.dart';
 import 'core/prefs.dart';
 import 'core/router.dart';
+import 'core/sound.dart';
 import 'core/theme.dart';
 import 'features/companies/data/companies_repository.dart';
+import 'features/fishing/data/fishing_repository.dart';
 import 'features/income/data/income_repository.dart';
 import 'features/properties/data/properties_repository.dart';
 import 'features/leverage/data/leverage_repository.dart';
@@ -80,6 +82,9 @@ class _TradingGameAppState extends ConsumerState<TradingGameApp> {
     ref.invalidate(myCompaniesProvider);
     ref.invalidate(myCompanyDecisionsProvider);
     ref.invalidate(myPropertiesProvider);
+    // Coming back to the app is exactly when the boat has been fishing.
+    ref.invalidate(fisheryProvider);
+    ref.invalidate(fisheryHoldProvider);
     // Re-snapshot the currency rate against freshly-fetched prices so a label
     // in Rand isn't stuck on a rate from before the phone locked.
     ref.read(currencyProvider.notifier).refreshRate();
@@ -95,9 +100,11 @@ class _TradingGameAppState extends ConsumerState<TradingGameApp> {
       theme: AppTheme.dark(),
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => KeyedSubtree(
-        key: ValueKey(currency.code),
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => SoundGate(
+        child: KeyedSubtree(
+          key: ValueKey(currency.code),
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
     );
   }

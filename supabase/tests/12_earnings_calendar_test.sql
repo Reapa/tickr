@@ -8,6 +8,16 @@ set search_path = public, extensions, game;
 select pg_advisory_xact_lock(hashtext('game.market_tick'));
 update public.game_config set value = 'true' where key = 'markets_always_open';
 
+-- The live pg_cron tick schedules real events between resets; those rows are
+-- committed and visible here, and they collide with the per-asset assertions
+-- below (two GOGL events, one assertion, two results). Start from an empty
+-- calendar - this transaction rolls back, so nothing real is lost.
+delete from public.scheduled_events;
+-- Same story for the news those events produced: the assertions below match on
+-- "Googol%estimates", and a cron-resolved earnings from an earlier tick matches
+-- that too, turning one assertion into two results.
+delete from public.market_events;
+
 select plan(9);
 
 -- ---------------------------------------------------------------------------
