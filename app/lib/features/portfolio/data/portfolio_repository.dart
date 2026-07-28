@@ -20,6 +20,10 @@ class NetWorthPoint {
   final DateTime time;
 }
 
+/// One row of personal activity. Spot orders and leveraged positions live in
+/// separate tables server-side; `get_my_recent_trades` unions them into this
+/// single shape so realized P/L shows for both (see migration
+/// 20260722000026_leverage_activity).
 class OrderRow {
   const OrderRow({
     required this.assetId,
@@ -28,9 +32,12 @@ class OrderRow {
     required this.status,
     required this.rejectReason,
     required this.createdAt,
+    this.kind = 'spot',
     this.realizedPnl,
     this.closeAvgCost,
     this.xpMultiplier,
+    this.leverage,
+    this.closeReason,
   });
 
   factory OrderRow.fromJson(Map<String, dynamic> json) => OrderRow(
@@ -39,16 +46,21 @@ class OrderRow {
         quantity: jsonDouble(json['quantity']),
         status: json['status'] as String,
         rejectReason: json['reject_reason'] as String?,
-        createdAt: jsonDate(json['created_at']),
+        // The unioned feed names the timestamp `at`; keep `created_at` working
+        // for anything still reading the orders table directly.
+        createdAt: jsonDate(json['at'] ?? json['created_at']),
+        kind: (json['kind'] as String?) ?? 'spot',
         realizedPnl: json['realized_pnl'] == null
             ? null
             : jsonDouble(json['realized_pnl']),
-        closeAvgCost: json['close_avg_cost'] == null
+        closeAvgCost: (json['cost_basis'] ?? json['close_avg_cost']) == null
             ? null
-            : jsonDouble(json['close_avg_cost']),
+            : jsonDouble(json['cost_basis'] ?? json['close_avg_cost']),
         xpMultiplier: json['xp_multiplier'] == null
             ? null
             : jsonInt(json['xp_multiplier']),
+        leverage: json['leverage'] == null ? null : jsonInt(json['leverage']),
+        closeReason: json['close_reason'] as String?,
       );
 
   final String assetId;
@@ -58,28 +70,63 @@ class OrderRow {
   final String? rejectReason;
   final DateTime createdAt;
 
-  /// Cash profit (+) or loss (−) locked in by a closing sell. Null for buys,
-  /// rejections, and pending orders.
+  /// 'spot' (an order) or 'leverage' (a margin position).
+  final String kind;
+
+  /// Cash profit (+) or loss (−) locked in by a close. Null for entries,
+  /// rejections, and still-open positions.
   final double? realizedPnl;
 
-  /// The position's average cost per unit at close — lets us show a return %.
+  /// Cost basis at close: average cost PER UNIT for spot, total margin staked
+  /// for a leveraged position. [realizedReturn] handles the difference.
   final double? closeAvgCost;
 
   /// XP multiplier on this close: 1 = flat, 2–10 = a "Sharp Trade" bonus roll.
   final int? xpMultiplier;
 
+  /// Leverage multiple, leveraged rows only.
+  final int? leverage;
+
+  /// How a leveraged position ended: manual | take_profit | stop_loss |
+  /// liquidation.
+  final String? closeReason;
+
+  bool get isLeverage => kind == 'leverage';
+
   bool get isSharpTrade => (xpMultiplier ?? 1) > 1;
 
-  bool get isRealizedClose =>
-      side == 'sell' && status == 'filled' && realizedPnl != null;
+  bool get isLiquidation => status == 'liquidated';
 
-  /// Return on the closed lot: pnl / cost basis. Null when cost basis is absent.
+  bool get isRealizedClose => realizedPnl != null &&
+      (isLeverage
+          ? (status == 'closed' || status == 'liquidated')
+          : side == 'sell' && status == 'filled');
+
+  /// Return on what was actually risked: cost basis for spot, margin staked
+  /// for leverage — the only figure that means anything at 50x.
   double? get realizedReturn {
     final pnl = realizedPnl;
-    final avg = closeAvgCost;
-    if (pnl == null || avg == null || avg * quantity == 0) return null;
-    return pnl / (avg * quantity);
+    final basis = closeAvgCost;
+    if (pnl == null || basis == null) return null;
+    final denominator = isLeverage ? basis : basis * quantity;
+    if (denominator == 0) return null;
+    return pnl / denominator;
   }
+
+  /// Human label for the action, e.g. "Long 50×" or "Buy".
+  String get actionLabel {
+    if (!isLeverage) return side == 'buy' ? 'Buy' : 'Sell';
+    final dir = side == 'long' ? 'Long' : 'Short';
+    return leverage == null ? dir : '$dir $leverage×';
+  }
+
+  /// Why a leveraged position ended, when it's worth saying out loud.
+  String? get outcomeLabel => switch (closeReason) {
+        'liquidation' => 'Liquidated',
+        'take_profit' => 'Take profit',
+        'stop_loss' => 'Stop loss',
+        _ => null,
+      };
 }
 
 /// A pending trigger order. On the sell side these are protection:
@@ -205,14 +252,18 @@ class PortfolioRepository {
     return rows.map(LedgerEntry.fromJson).toList();
   }
 
+  /// Spot orders AND leveraged positions in one chronological list. Reads the
+  /// server-side union rather than `orders` directly, because leveraged trades
+  /// never write an order row and were previously missing entirely.
   Future<List<OrderRow>> fetchRecentOrders({int limit = 20}) async {
-    final rows = await _client
-        .from('orders')
-        .select('asset_id, side, quantity, status, reject_reason, created_at, '
-            'realized_pnl, close_avg_cost, xp_multiplier')
-        .order('created_at', ascending: false)
-        .limit(limit);
-    return rows.map(OrderRow.fromJson).toList();
+    final rows = await _client.rpc<List<dynamic>>(
+      'get_my_recent_trades',
+      params: {'p_limit': limit},
+    );
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(OrderRow.fromJson)
+        .toList();
   }
 
   /// Live pending orders: refetch on every Realtime change to the user's

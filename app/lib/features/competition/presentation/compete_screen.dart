@@ -88,16 +88,28 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = AppTheme.changeColor(item.isBuySide ? 1 : -1);
-    final verb = item.isLeverage
-        ? '${item.side == 'long' ? 'longed' : 'shorted'} ${item.leverage}×'
-        : (item.side == 'buy' ? 'bought' : 'sold');
+    final direction = item.side == 'long' ? 'long' : 'short';
+    final verb = switch (item.kind) {
+      'liquidation' => 'got liquidated ${item.leverage}× ${direction}ing',
+      'leverage_close' => 'closed a ${item.leverage}× $direction on',
+      'leverage' => '${direction}ed ${item.leverage}×',
+      _ => item.side == 'buy' ? 'bought' : 'sold',
+    };
     return ListTile(
       dense: true,
       leading: Icon(
-        item.isLeverage
-            ? Icons.bolt
-            : (item.isBuySide ? Icons.arrow_upward : Icons.arrow_downward),
-        color: item.isLeverage ? AppTheme.gold : color,
+        item.isLiquidation
+            ? Icons.local_fire_department
+            : item.isLeverage
+                ? Icons.bolt
+                : (item.isBuySide
+                    ? Icons.arrow_upward
+                    : Icons.arrow_downward),
+        color: item.isLiquidation
+            ? AppTheme.down
+            : item.isLeverage
+                ? AppTheme.gold
+                : color,
         size: 20,
       ),
       title: Text.rich(TextSpan(children: [
@@ -123,7 +135,12 @@ class _ActivityRow extends StatelessWidget {
                       color: AppTheme.changeColor(item.realizedPnl!),
                       fontFeatures: const [FontFeature.tabularFigures()]),
                 ),
-                Text(item.realizedPnl! >= 0 ? 'profit' : 'loss',
+                Text(
+                    item.isLiquidation
+                        ? 'wiped out'
+                        : item.realizedPnl! >= 0
+                            ? 'profit'
+                            : 'loss',
                     style:
                         TextStyle(fontSize: 10, color: Colors.grey.shade500)),
               ],

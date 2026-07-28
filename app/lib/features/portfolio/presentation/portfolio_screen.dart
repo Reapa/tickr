@@ -571,21 +571,32 @@ class _RecentOrders extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text('Recent orders',
+          child: Text('Recent activity',
               style: Theme.of(context).textTheme.titleMedium),
         ),
+        // Spot orders and leveraged positions interleaved — they're separate
+        // systems on the server but one story to the player.
         for (final order in orders.take(10))
           ListTile(
             dense: true,
             leading: Icon(
-              order.side == 'buy' ? Icons.add : Icons.remove,
-              color: order.status == 'filled'
-                  ? (order.side == 'buy' ? AppTheme.up : AppTheme.down)
-                  : Colors.grey,
+              order.isLeverage
+                  ? (order.side == 'long'
+                      ? Icons.trending_up
+                      : Icons.trending_down)
+                  : (order.side == 'buy' ? Icons.add : Icons.remove),
+              color: switch (order.status) {
+                'rejected' || 'cancelled' => Colors.grey,
+                'liquidated' => AppTheme.down,
+                _ => order.side == 'buy' || order.side == 'long'
+                    ? AppTheme.up
+                    : AppTheme.down,
+              },
             ),
             title: Text(
-              '${order.side.toUpperCase()} ${Fmt.quantity(order.quantity)} '
-              '${symbolById[order.assetId] ?? '?'} — ${order.status}'
+              '${order.actionLabel} ${Fmt.quantity(order.quantity)} '
+              '${symbolById[order.assetId] ?? '?'} — '
+              '${order.outcomeLabel ?? order.status}'
               '${order.rejectReason != null ? ' (${order.rejectReason})' : ''}',
             ),
             subtitle: Text(Fmt.timeAgo(order.createdAt)),
@@ -636,7 +647,12 @@ class _RealizedPnl extends StatelessWidget {
           )
         else
           Text(
-            ret == null ? 'realized' : '${pnl >= 0 ? '+' : ''}${Fmt.pct(ret)}',
+            ret == null
+                // A leveraged return is on the margin staked, not the notional
+                // — say so, or "+400%" on a 50x looks like a bug.
+                ? 'realized'
+                : '${pnl >= 0 ? '+' : ''}${Fmt.pct(ret)}'
+                    '${order.isLeverage ? ' on margin' : ''}',
             style:
                 TextStyle(fontSize: 10.5, color: color.withValues(alpha: 0.8)),
           ),

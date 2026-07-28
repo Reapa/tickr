@@ -104,12 +104,25 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
 
     int requiredLevel(int lev) => lev == 100 ? 10 : (lev == 50 ? 5 : 1);
 
-    return Padding(
-      padding: const EdgeInsets.all(20),
+    // This ticket is tall — direction, four leverage chips, a stake field,
+    // quick-fill chips, four summary rows and a liquidation warning. On a
+    // phone that overflowed the sheet and pushed the open button off screen.
+    // Cap the sheet, scroll the body, and pin the button where it's reachable.
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
           Text('Leverage ${asset.symbol}',
               style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
@@ -120,17 +133,23 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
+          // Short labels: the full "▲ Long — price goes up" wrapped to two
+          // lines on a narrow phone and cost a whole row of height.
           SegmentedButton<String>(
             segments: const [
-              ButtonSegment(
-                  value: 'long',
-                  label: Text('▲ Long — price goes up')),
-              ButtonSegment(
-                  value: 'short',
-                  label: Text('▼ Short — price goes down')),
+              ButtonSegment(value: 'long', label: Text('▲ Long')),
+              ButtonSegment(value: 'short', label: Text('▼ Short')),
             ],
             selected: {_side},
+            showSelectedIcon: false,
             onSelectionChanged: (s) => setState(() => _side = s.first),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isLong ? 'Profits if the price goes up.'
+                   : 'Profits if the price goes down.',
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -210,23 +229,38 @@ class _LeverageSheetState extends ConsumerState<LeverageSheet> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: isLong ? AppTheme.up : AppTheme.down,
-              minimumSize: const Size.fromHeight(48),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
-            onPressed:
-                _busy || _marginValue < 100 || _marginValue > cash ? null : _open,
-            child: _busy
-                ? const SizedBox(
-                    width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : Text(
-                    '${isLong ? 'Long' : 'Short'} ${asset.symbol} ${_leverage}x '
-                    'with ${Fmt.money(_marginValue)}'),
           ),
-          const SizedBox(height: 8),
+          // Pinned: whatever the body does, the open button stays tappable.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: SafeArea(
+              top: false,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: isLong ? AppTheme.up : AppTheme.down,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: _busy || _marginValue < 100 || _marginValue > cash
+                    ? null
+                    : _open,
+                child: _busy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(
+                        '${isLong ? 'Long' : 'Short'} ${asset.symbol} '
+                        '${_leverage}x with ${Fmt.money(_marginValue)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+              ),
+            ),
+          ),
         ],
       ),
     );

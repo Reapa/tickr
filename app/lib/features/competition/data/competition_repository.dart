@@ -347,7 +347,8 @@ class ActivityItem {
         at: jsonDate(json['at']),
         trader: json['trader'] as String,
         symbol: json['symbol'] as String,
-        kind: json['kind'] as String, // spot | leverage
+        // spot | leverage | leverage_close | liquidation
+        kind: json['kind'] as String,
         side: json['side'] as String,
         notional: jsonDouble(json['notional']),
         leverage: json['leverage'] == null ? null : jsonInt(json['leverage']),
@@ -364,12 +365,24 @@ class ActivityItem {
   final double notional;
   final int? leverage;
 
-  /// Cash profit (+) / loss (−) if this activity closed a spot position.
+  /// Cash profit (+) / loss (−) if this activity closed a position — spot or
+  /// leveraged.
   final double? realizedPnl;
 
-  bool get isLeverage => kind == 'leverage';
+  /// Any margin activity: an entry, a close, or a liquidation.
+  bool get isLeverage => kind != 'spot';
+
+  /// A margin position being ENTERED (as opposed to closed out).
+  bool get isLeverageEntry => kind == 'leverage';
+
+  /// Somebody's margin position got wiped — the most dramatic event in the
+  /// game, and the feed used to swallow it silently.
+  bool get isLiquidation => kind == 'liquidation';
+
   bool get isBuySide => side == 'buy' || side == 'long';
-  bool get isRealizedClose => !isLeverage && side == 'sell' && realizedPnl != null;
+
+  bool get isRealizedClose => realizedPnl != null &&
+      (kind == 'spot' ? side == 'sell' : !isLeverageEntry);
 }
 
 final competitionRepositoryProvider = Provider<CompetitionRepository>(
