@@ -256,6 +256,25 @@ class FightScene extends CustomPainter {
     final cam = _camera(size);
     canvas.translate(shake.dx + cam.dx, shake.dy + cam.dy);
 
+    // The shot tightens as the fish comes in. A fight that is framed identically
+    // at 40 metres and at the gunwale has no arc to it — the animal simply
+    // slides up the same picture. Pushing in as you win ground is what makes the
+    // end of a fight feel like the end of one. A live hazard punches in further,
+    // then releases.
+    final zoom = 1 +
+        0.20 * progress +
+        0.06 * math.sin(actionPhase.clamp(0.0, 1.0) * math.pi) *
+            (action == Move.work ? 0 : 1);
+    if (zoom > 1.001) {
+      // Anchored below centre, toward where the fish and the rod tip both live,
+      // so pushing in does not crop the rod out of frame.
+      final focus = Offset(size.width * 0.46, size.height * 0.56);
+      canvas
+        ..translate(focus.dx, focus.dy)
+        ..scale(zoom)
+        ..translate(-focus.dx, -focus.dy);
+    }
+
     final horizonY = size.height * _horizon;
     final surfaceRest = size.height * _surface;
 
