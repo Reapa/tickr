@@ -7,19 +7,24 @@ import '../../../core/sound.dart';
 import '../../../core/theme.dart';
 import '../domain/fight_sim.dart';
 import '../domain/fishery.dart';
+import 'fight_scene.dart';
+import 'sea.dart';
 
-/// The fight — the thing there was previously nothing of.
+/// The fight.
 ///
 /// Three beats, and each one is a different kind of attention:
 ///
-///   WAIT   the float sits there for a variable delay, so you cannot pre-empt it
+///   WAIT   a float on the water for a variable delay, so you cannot pre-empt
+///          it. It nods on a nibble before anything commits.
 ///   BITE   a reaction window: tap to set the hook, or it spits it
 ///   FIGHT  a duty cycle. Winding builds tension and brings the fish in; easing
 ///          off bleeds tension but makes no progress. The line snaps at the top
 ///          of the gauge and the fish has a finite stamina, so the whole game is
 ///          finding how hard you can lean on it without losing it.
 ///
-/// Every constant driving this comes from the server in [FightProfile]. The
+/// This takes the whole screen rather than sitting in a card, because it is not
+/// a widget on the fishery page — it is the game the fishery page is a lobby
+/// for. Every constant driving it comes from the server in [FightProfile]. The
 /// client animates; it does not decide. What it reports back is the outcome and
 /// a `score` — the fraction of the fight spent inside the tension band — which
 /// the server converts into a clamped bonus.
@@ -28,9 +33,11 @@ class FightPanel extends StatefulWidget {
     super.key,
     required this.fight,
     required this.onFinished,
+    this.spotName = '',
   });
 
   final FightProfile fight;
+  final String spotName;
 
   /// (landed, score 0..1). Never fires before the fight could physically have
   /// been played — the server rejects resolves that arrive too early.
@@ -50,6 +57,9 @@ class _FightPanelState extends State<FightPanel>
   /// rather than only by hand. This class owns input and pixels.
   late final FightSim _sim = FightSim(widget.fight);
 
+  final FightFx _fx = FightFx();
+  final math.Random _rng = math.Random();
+
   _Phase _phase = _Phase.waiting;
   double _elapsed = 0; // ms since the cast landed
   double _last = 0;
@@ -58,14 +68,38 @@ class _FightPanelState extends State<FightPanel>
 
   bool _holding = false;
   double _lastReelSfx = 0;
+  bool _wasSurging = false;
+
+  /// Camera kick. Decays on its own; surges keep topping it up.
+  double _shakeMag = 0;
+  Offset _shake = Offset.zero;
+
+  /// 0..1 — the landing leap, played out after the sim is already over.
+  double _breach = 0;
+  bool _breachSplashed = false;
+
+  /// When the float nods without anything committing. Purely theatre, but it is
+  /// the theatre that makes the real bite land.
+  late final List<double> _nibbles = _f.biteMs < 1400
+      ? const []
+      : [_f.biteMs * 0.40, if (_f.biteMs > 2600) _f.biteMs * 0.72];
+  final Set<int> _nibbled = {};
 
   bool _landed = false;
   String _outcome = '';
+  String _outcomeDetail = '';
+
+  Size _size = Size.zero;
 
   FightProfile get _f => widget.fight;
   double get _tension => _sim.tension;
   double get _progress => _sim.progress;
-  bool get _surging => _sim.surging;
+
+  /// How far past the top of the band the line is, 0..1. Drives the colour
+  /// grade, the chop and the warning bloom.
+  double get _strain => _f.bandHigh >= 1
+      ? 0
+      : ((_tension - _f.bandHigh) / (1 - _f.bandHigh)).clamp(0.0, 1.0);
 
   /// A resolve sent sooner than this is rejected server-side as a forgery, so
   /// short losses (a missed hook) are held back to land on the normal path
@@ -92,21 +126,35 @@ class _FightPanelState extends State<FightPanel>
 
     switch (_phase) {
       case _Phase.waiting:
+        _stepNibbles();
         if (_elapsed >= _f.biteMs) {
           _biteAt = _elapsed;
           _phase = _Phase.bite;
-          Sfx.splash();
+          Sfx.splashBig();
+          _fx.splash(_fx.entry, power: 0.7);
+          _shakeMag += 5;
         }
       case _Phase.bite:
         if (_elapsed - _biteAt > _f.hookWindowMs) {
-          _finish(false, 'It spat the hook.');
+          _finish(false, 'It spat the hook', 'you were too slow on the strike');
         }
       case _Phase.fighting:
         _stepFight(dt);
       case _Phase.over:
-        return;
+        _stepAftermath(dt);
     }
+
+    _stepScene(dt);
     if (mounted) setState(() {});
+  }
+
+  void _stepNibbles() {
+    for (var i = 0; i < _nibbles.length; i++) {
+      if (_elapsed >= _nibbles[i] && _nibbled.add(i)) {
+        Sfx.tick();
+        _fx.ring(_fx.entry);
+      }
+    }
   }
 
   void _stepFight(double dtMs) {
@@ -117,15 +165,64 @@ class _FightPanelState extends State<FightPanel>
 
     _sim.step(dtMs, holding: _holding);
 
+    // A run starting is the moment that has to be legible, so it gets the
+    // drag screaming and a kick in the camera as well as the colour change.
+    if (_sim.surging && !_wasSurging) {
+      Sfx.drag();
+      _shakeMag += 7;
+      _fx.splash(_fx.entry, power: 0.5);
+    }
+    _wasSurging = _sim.surging;
+
     switch (_sim.end) {
       case FightEnd.snapped:
-        _finish(false, 'The line snapped.');
+        _finish(false, 'The line snapped', 'you leaned on it too hard');
       case FightEnd.landed:
-        _finish(true, 'Landed!');
+        _finish(true, 'Landed!', 'bringing it aboard');
       case FightEnd.ranOut:
-        _finish(false, 'It ran you out and broke off.');
+        _finish(false, 'It broke you off', 'it had more left than you did');
       case FightEnd.none:
         break;
+    }
+  }
+
+  void _stepAftermath(double dtMs) {
+    if (!_landed) return;
+    _breach = math.min(1, _breach + dtMs / 620);
+    if (_breach >= 0.5 && !_breachSplashed) {
+      _breachSplashed = true;
+      Sfx.splashBig();
+      _fx.splash(_fx.entry, power: 1.7);
+      _shakeMag += 9;
+    }
+  }
+
+  /// Particles, camera and the reel — everything that keeps moving whether or
+  /// not the simulation is still running.
+  void _stepScene(double dtMs) {
+    final target = _sim.surgeIntensity * 3.4 + _strain * 1.6;
+    _shakeMag += (target - _shakeMag) * math.min(1, dtMs / 90);
+    _shakeMag = math.max(0, _shakeMag - dtMs * 0.012);
+    _shake = _shakeMag < 0.05
+        ? Offset.zero
+        : Offset((_rng.nextDouble() - 0.5), (_rng.nextDouble() - 0.5)) *
+            _shakeMag *
+            2;
+
+    // The reel turns in when you wind and gives line back when it runs — which
+    // is the difference between winning ground and merely holding on.
+    final reelRate = _phase != _Phase.fighting
+        ? 0.0
+        : _sim.surging
+            ? -11.0 * _sim.surgeIntensity
+            : _holding
+                ? 8.5
+                : 0.0;
+    _fx.step(dtMs, surfaceY: _fx.surfaceY, reelRate: reelRate);
+
+    if (_phase == _Phase.fighting) {
+      _fx.trickleBubbles(_fx.fishAt, _sim.surgeIntensity);
+      if (_tension > 0.2) _fx.trickleRing(_fx.entry);
     }
   }
 
@@ -136,146 +233,289 @@ class _FightPanelState extends State<FightPanel>
       _fightStart = _elapsed;
       _sim.setHook();
     });
-    Sfx.tick();
+    Sfx.splash();
+    _fx.splash(_fx.entry, power: 0.9);
+    _shakeMag += 6;
   }
 
-  void _finish(bool landed, String outcome) {
+  void _finish(bool landed, String outcome, String detail) {
     if (_phase == _Phase.over) return;
     _phase = _Phase.over;
-    _ticker.stop();
     _landed = landed;
     _outcome = outcome;
-    if (!landed) Sfx.nope();
+    _outcomeDetail = detail;
+
+    if (landed) {
+      _fx.splash(_fx.entry, power: 1.2);
+    } else if (_sim.end == FightEnd.snapped) {
+      Sfx.snap();
+      _shakeMag += 14;
+      _fx.splash(_fx.entry, power: 0.6);
+    } else {
+      Sfx.nope();
+    }
 
     final score = _sim.score;
     final wait = math.max(0.0, _minResolveMs - _elapsed);
 
     if (mounted) setState(() {});
+    // A landed fish gets long enough for the leap to actually read; a loss is
+    // let go of quickly, because nobody wants to sit and look at it.
     Future<void>.delayed(
-      Duration(milliseconds: (wait + 620).round()),
+      Duration(milliseconds: (wait + (landed ? 1150 : 760)).round()),
       () {
         if (mounted) widget.onFinished(landed, score);
       },
     );
   }
 
+  /// Calm water, water under load, or the water that just beat you.
+  SeaPalette get _palette {
+    if (_phase == _Phase.over && !_landed) {
+      return SeaPalette.lerp(SeaPalette.open, SeaPalette.lost, 0.85);
+    }
+    return SeaPalette.lerp(SeaPalette.open, SeaPalette.strained, _strain);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final snapping = _tension > _f.bandHigh;
-    return Listener(
-      onPointerDown: (_) {
-        if (_phase == _Phase.bite) {
-          _hook();
-        } else if (_phase == _Phase.fighting) {
-          setState(() => _holding = true);
-        }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _size = constraints.biggest;
+        return Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (_) {
+            if (_phase == _Phase.bite) {
+              _hook();
+            } else if (_phase == _Phase.fighting) {
+              setState(() => _holding = true);
+            }
+          },
+          onPointerUp: (_) {
+            if (_phase == _Phase.fighting) setState(() => _holding = false);
+          },
+          onPointerCancel: (_) {
+            if (_phase == _Phase.fighting) setState(() => _holding = false);
+          },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              RepaintBoundary(
+                child: CustomPaint(
+                  size: _size,
+                  painter: FightScene(
+                    t: _elapsed / 1000.0,
+                    palette: _palette,
+                    tension: _tension,
+                    progress: _progress,
+                    surge: _sim.surgeIntensity,
+                    strain: _strain,
+                    fishScale: _f.shadowScale,
+                    hooked: _phase == _Phase.fighting,
+                    reeling: _holding,
+                    bobber: _phase == _Phase.waiting || _phase == _Phase.bite,
+                    bobberDip: _bobberDip,
+                    breach: _breach,
+                    snapped: _sim.end == FightEnd.snapped,
+                    fx: _fx,
+                    shake: _shake,
+                  ),
+                ),
+              ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+                  child: Stack(
+                    children: [
+                      Align(alignment: Alignment.topCenter, child: _topHud()),
+                      Center(child: _centrePrompt()),
+                      Align(
+                          alignment: Alignment.bottomCenter,
+                          child: _bottomHud()),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
       },
-      onPointerUp: (_) {
-        if (_phase == _Phase.fighting) setState(() => _holding = false);
-      },
-      onPointerCancel: (_) {
-        if (_phase == _Phase.fighting) setState(() => _holding = false);
-      },
-      child: Container(
-        height: 300,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: _phase == _Phase.over && !_landed
-                ? const [Color(0xFF3A1520), Color(0xFF14060A)]
-                : snapping
-                    ? const [Color(0xFF5C2A0E), Color(0xFF1E0C04)]
-                    : const [Color(0xFF0E3A5C), Color(0xFF03131F)],
+    );
+  }
+
+  double get _bobberDip {
+    if (_phase == _Phase.bite) return 1;
+    for (final n in _nibbles) {
+      if (_elapsed >= n && _elapsed < n + 280) {
+        return math.sin((_elapsed - n) / 280 * math.pi) * 0.6;
+      }
+    }
+    return 0;
+  }
+
+  // --------------------------------------------------------------------------
+  // HUD
+  // --------------------------------------------------------------------------
+
+  Widget _topHud() {
+    final fighting = _phase == _Phase.fighting;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.spotName.isEmpty
+                    ? 'ON THE LINE'
+                    : widget.spotName.toUpperCase(),
+                style: _label(alpha: 0.5),
+              ),
+            ),
+            Text(
+              _phase == _Phase.waiting
+                  ? _f.shadowLabel.toUpperCase()
+                  : fighting
+                      ? (_holding ? 'WINDING' : 'GIVING LINE')
+                      : '',
+              style: _label(
+                alpha: 0.7,
+                color: fighting && _holding ? AppTheme.gold : null,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        AnimatedOpacity(
+          opacity: fighting || _phase == _Phase.over ? 1 : 0.32,
+          duration: const Duration(milliseconds: 200),
+          child: _TensionGauge(
+            tension: _tension,
+            bandLow: _f.bandLow,
+            bandHigh: _f.bandHigh,
+            strain: _strain,
           ),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
+      ],
+    );
+  }
+
+  Widget _bottomHud() {
+    if (_phase == _Phase.waiting) {
+      return Text('KEEP AN EYE ON THE FLOAT',
+          style: _label(alpha: 0.42), textAlign: TextAlign.center);
+    }
+    final stamina = _phase == _Phase.fighting
+        ? (1 - ((_elapsed - _fightStart) / _f.staminaMs)).clamp(0.0, 1.0)
+        : 0.0;
+    // Distance reads better than a percentage: 12 m off the boat is a picture,
+    // 71% is a number.
+    final metres = (40 * (1 - _progress)).clamp(0.0, 40.0);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _FightPainter(
-                  phase: _phase,
-                  elapsed: _elapsed,
-                  progress: _progress,
-                  tension: _tension,
-                  surging: _surging,
-                  shadowScale: _f.shadowScale,
-                  landed: _landed,
-                ),
+            Text('TO THE BOAT', style: _label(alpha: 0.6)),
+            const Spacer(),
+            Text(
+              metres < 1 ? 'ALONGSIDE' : '${metres.toStringAsFixed(0)} m',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
+                shadows: [Shadow(blurRadius: 8, color: Colors.black87)],
               ),
             ),
-            Positioned(
-              left: 16,
-              right: 16,
-              top: 14,
-              child: _TensionGauge(
-                tension: _tension,
-                bandLow: _f.bandLow,
-                bandHigh: _f.bandHigh,
-                active: _phase == _Phase.fighting,
-              ),
-            ),
-            Positioned.fill(child: Center(child: _centrePrompt())),
-            if (_phase == _Phase.fighting || _phase == _Phase.over)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 14,
-                child: _DistanceBar(
-                  progress: _progress,
-                  staminaLeft: _phase == _Phase.fighting
-                      ? (1 - ((_elapsed - _fightStart) / _f.staminaMs))
-                          .clamp(0.0, 1.0)
-                          .toDouble()
-                      : 0,
-                ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        _Meter(
+          value: _progress,
+          color: AppTheme.gold,
+          height: 7,
+        ),
+        const SizedBox(height: 9),
+        Row(
+          children: [
+            Text('IT IS TIRING', style: _label(alpha: 0.45)),
+            const Spacer(),
+            if (_phase == _Phase.fighting)
+              Text(
+                stamina < 0.25 ? 'ALMOST BEATEN' : '',
+                style: _label(alpha: 0.75, color: AppTheme.up),
               ),
           ],
         ),
-      ),
+        const SizedBox(height: 4),
+        _Meter(
+          value: 1 - stamina,
+          color: Colors.white.withValues(alpha: 0.5),
+          height: 3,
+        ),
+      ],
     );
   }
 
   Widget _centrePrompt() {
     switch (_phase) {
       case _Phase.waiting:
-        return _Prompt(
-          title: _f.shadowLabel.toUpperCase(),
-          subtitle: 'is circling the bait…',
-          dim: true,
-        );
+        return const SizedBox.shrink();
       case _Phase.bite:
         // The whole reaction window, and nothing else on screen.
         return TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.6, end: 1.0),
-          duration: const Duration(milliseconds: 140),
+          tween: Tween(begin: 0.55, end: 1.0),
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOutBack,
           builder: (context, v, child) =>
               Transform.scale(scale: v, child: child),
           child: const _Prompt(
             title: 'BITE!',
             subtitle: 'TAP TO SET THE HOOK',
             accent: AppTheme.gold,
+            big: true,
           ),
         );
       case _Phase.fighting:
+        // The hint gets out of the way once the fight is actually happening —
+        // after that the rod and the water are the instruments.
+        final fresh = _elapsed - _fightStart < 1600;
+        if (_sim.surging) {
+          return const _Prompt(
+            title: "IT'S RUNNING",
+            subtitle: 'EASE OFF — LET IT TAKE LINE',
+            accent: AppTheme.down,
+            big: true,
+          );
+        }
+        if (!fresh) return const SizedBox.shrink();
         return _Prompt(
-          title: _holding ? 'REELING' : 'GIVE IT LINE',
-          subtitle: _surging
-              ? "IT'S RUNNING — EASE OFF"
-              : 'hold anywhere to wind  ·  release to bleed tension',
-          accent: _surging ? AppTheme.down : null,
-          dim: !_surging,
+          title: '',
+          subtitle: 'HOLD ANYWHERE TO WIND  ·  RELEASE TO EASE OFF',
+          dim: true,
         );
       case _Phase.over:
         return _Prompt(
           title: _outcome,
-          subtitle: _landed ? 'bringing it aboard…' : '',
+          subtitle: _outcomeDetail,
           accent: _landed ? AppTheme.up : AppTheme.down,
+          big: true,
         );
     }
   }
+
+  TextStyle _label({double alpha = 0.6, Color? color}) => TextStyle(
+        color: color ?? Colors.white.withValues(alpha: alpha),
+        fontSize: 9.5,
+        letterSpacing: 1.7,
+        fontWeight: FontWeight.w900,
+        shadows: const [Shadow(blurRadius: 8, color: Colors.black87)],
+      );
 }
 
 class _Prompt extends StatelessWidget {
@@ -284,39 +524,46 @@ class _Prompt extends StatelessWidget {
     required this.subtitle,
     this.accent,
     this.dim = false,
+    this.big = false,
   });
 
   final String title;
   final String subtitle;
   final Color? accent;
   final bool dim;
+  final bool big;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: accent ?? Colors.white.withValues(alpha: dim ? 0.62 : 0.95),
-            fontSize: accent != null && !dim ? 26 : 17,
-            letterSpacing: 1.5,
-            fontWeight: FontWeight.w900,
-            shadows: const [Shadow(blurRadius: 12, color: Colors.black54)],
-          ),
-        ),
-        if (subtitle.isNotEmpty) ...[
-          const SizedBox(height: 6),
+        if (title.isNotEmpty)
           Text(
-            subtitle,
+            title,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 11,
-              letterSpacing: 0.8,
-              fontWeight: FontWeight.w600,
+              color: accent ?? Colors.white.withValues(alpha: dim ? 0.62 : 0.95),
+              fontSize: big ? 30 : 17,
+              letterSpacing: 1.5,
+              fontWeight: FontWeight.w900,
+              shadows: const [
+                Shadow(blurRadius: 18, color: Colors.black),
+                Shadow(blurRadius: 6, color: Colors.black87),
+              ],
+            ),
+          ),
+        if (subtitle.isNotEmpty) ...[
+          if (title.isNotEmpty) const SizedBox(height: 7),
+          Text(
+            subtitle.toUpperCase(),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.66),
+              fontSize: 10.5,
+              letterSpacing: 1.6,
+              fontWeight: FontWeight.w800,
+              shadows: const [Shadow(blurRadius: 10, color: Colors.black87)],
             ),
           ),
         ],
@@ -325,110 +572,41 @@ class _Prompt extends StatelessWidget {
   }
 }
 
-/// Line tension. The band is where a clean fight lives; the red shoulder above
-/// it is survivable but scores nothing, and the top of the bar is a snap.
+/// A thin progress meter with a dark track, used for distance and stamina.
+class _Meter extends StatelessWidget {
+  const _Meter({required this.value, required this.color, required this.height});
+
+  final double value;
+  final Color color;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(height / 2),
+        child: LinearProgressIndicator(
+          value: value.clamp(0.0, 1.0),
+          minHeight: height,
+          backgroundColor: Colors.black.withValues(alpha: 0.45),
+          color: color,
+        ),
+      );
+}
+
+/// Line tension, drawn as an instrument rather than a progress bar: a scale
+/// with ticks, the working band picked out in green, the red shoulder hatched,
+/// and a needle you can read at a glance while looking at the water.
 class _TensionGauge extends StatelessWidget {
   const _TensionGauge({
     required this.tension,
     required this.bandLow,
     required this.bandHigh,
-    required this.active,
+    required this.strain,
   });
 
   final double tension;
   final double bandLow;
   final double bandHigh;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: active ? 1 : 0.35,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('LINE TENSION',
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 9,
-                      letterSpacing: 1.6,
-                      fontWeight: FontWeight.w900)),
-              const Spacer(),
-              Text(tension > bandHigh ? 'TOO TIGHT' : '',
-                  style: const TextStyle(
-                      color: AppTheme.down,
-                      fontSize: 9,
-                      letterSpacing: 1.6,
-                      fontWeight: FontWeight.w900)),
-            ],
-          ),
-          const SizedBox(height: 5),
-          LayoutBuilder(
-            builder: (context, c) => SizedBox(
-              height: 14,
-              child: Stack(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                  ),
-                  Positioned(
-                    left: c.maxWidth * bandLow,
-                    width: c.maxWidth * (bandHigh - bandLow),
-                    top: 0,
-                    bottom: 0,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.up.withValues(alpha: 0.30),
-                        border: Border.symmetric(
-                          vertical: BorderSide(
-                              color: AppTheme.up.withValues(alpha: 0.8)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    width: (c.maxWidth * tension).clamp(0.0, c.maxWidth),
-                    top: 3,
-                    bottom: 3,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: tension > bandHigh
-                            ? AppTheme.down
-                            : tension < bandLow
-                                ? Colors.white54
-                                : AppTheme.up,
-                        borderRadius: BorderRadius.circular(5),
-                        boxShadow: tension > bandHigh
-                            ? [
-                                const BoxShadow(
-                                    color: AppTheme.down, blurRadius: 10)
-                              ]
-                            : null,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// How close the fish is, and how much fight it has left in it.
-class _DistanceBar extends StatelessWidget {
-  const _DistanceBar({required this.progress, required this.staminaLeft});
-
-  final double progress;
-  final double staminaLeft;
+  final double strain;
 
   @override
   Widget build(BuildContext context) {
@@ -437,38 +615,39 @@ class _DistanceBar extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text('TO THE BOAT',
+            Text('LINE TENSION',
                 style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 9,
                     letterSpacing: 1.6,
-                    fontWeight: FontWeight.w900)),
+                    fontWeight: FontWeight.w900,
+                    shadows: const [
+                      Shadow(blurRadius: 8, color: Colors.black87)
+                    ])),
             const Spacer(),
-            Text('${(progress * 100).round()}%',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900)),
+            if (strain > 0)
+              Text(strain > 0.6 ? 'ABOUT TO GO' : 'TOO TIGHT',
+                  style: TextStyle(
+                      color: AppTheme.down,
+                      fontSize: 9,
+                      letterSpacing: 1.6,
+                      fontWeight: FontWeight.w900,
+                      shadows: const [
+                        Shadow(blurRadius: 8, color: Colors.black87)
+                      ])),
           ],
         ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 8,
-            backgroundColor: Colors.black.withValues(alpha: 0.45),
-            color: AppTheme.gold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-            value: staminaLeft,
-            minHeight: 3,
-            backgroundColor: Colors.black.withValues(alpha: 0.35),
-            color: Colors.white.withValues(alpha: 0.35),
+        const SizedBox(height: 5),
+        SizedBox(
+          height: 18,
+          child: CustomPaint(
+            size: Size.infinite,
+            painter: _GaugePainter(
+              tension: tension,
+              bandLow: bandLow,
+              bandHigh: bandHigh,
+              strain: strain,
+            ),
           ),
         ),
       ],
@@ -476,85 +655,96 @@ class _DistanceBar extends StatelessWidget {
   }
 }
 
-/// Water, the line, and the shape under it. The shadow is the only thing you
-/// see of the fish until it is in the boat.
-class _FightPainter extends CustomPainter {
-  _FightPainter({
-    required this.phase,
-    required this.elapsed,
-    required this.progress,
+class _GaugePainter extends CustomPainter {
+  _GaugePainter({
     required this.tension,
-    required this.surging,
-    required this.shadowScale,
-    required this.landed,
+    required this.bandLow,
+    required this.bandHigh,
+    required this.strain,
   });
 
-  final _Phase phase;
-  final double elapsed;
-  final double progress;
   final double tension;
-  final bool surging;
-  final double shadowScale;
-  final bool landed;
+  final double bandLow;
+  final double bandHigh;
+  final double strain;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final t = elapsed / 1000.0;
+    final r = RRect.fromRectAndRadius(
+        Offset.zero & size, const Radius.circular(4));
+    canvas.drawRRect(r, Paint()..color = Colors.black.withValues(alpha: 0.5));
+    canvas.save();
+    canvas.clipRRect(r);
 
-    // Swells. They get choppier the harder the line is loaded.
-    for (var layer = 0; layer < 3; layer++) {
-      final paint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.05 + layer * 0.03)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2;
-      final baseY = size.height * (0.42 + layer * 0.16);
-      final amplitude = 3.0 + layer * 2 + tension * 9 + (surging ? 6 : 0);
-      final path = Path()..moveTo(0, baseY);
-      for (double x = 0; x <= size.width; x += 6) {
-        path.lineTo(
-          x,
-          baseY +
-              math.sin((x / size.width * 4 * math.pi) + layer * 1.3 + t * 1.8) *
-                  amplitude,
-        );
-      }
-      canvas.drawPath(path, paint);
+    // The working band.
+    canvas.drawRect(
+      Rect.fromLTRB(size.width * bandLow, 0, size.width * bandHigh, size.height),
+      Paint()..color = AppTheme.up.withValues(alpha: 0.18),
+    );
+
+    // Hatching over the shoulder, so "past the band" is a texture you notice
+    // in peripheral vision rather than a shade of the same colour.
+    final hatch = Paint()
+      ..color = AppTheme.down.withValues(alpha: 0.30)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    canvas.save();
+    canvas.clipRect(
+        Rect.fromLTRB(size.width * bandHigh, 0, size.width, size.height));
+    for (double x = size.width * bandHigh - size.height;
+        x < size.width;
+        x += 6) {
+      canvas.drawLine(Offset(x, size.height), Offset(x + size.height, 0), hatch);
+    }
+    canvas.restore();
+
+    // The fill.
+    final w = (size.width * tension).clamp(0.0, size.width);
+    final fill = strain > 0
+        ? AppTheme.down
+        : tension < bandLow
+            ? Colors.white.withValues(alpha: 0.55)
+            : AppTheme.up;
+    canvas.drawRect(
+      Rect.fromLTRB(0, 3, w, size.height - 3),
+      Paint()..color = fill.withValues(alpha: 0.85),
+    );
+
+    // Scale ticks.
+    final tick = Paint()..color = Colors.white.withValues(alpha: 0.18);
+    for (var i = 1; i < 10; i++) {
+      final x = size.width * i / 10;
+      canvas.drawRect(
+          Rect.fromLTWH(x, size.height * 0.28, 1, size.height * 0.44), tick);
     }
 
-    if (phase == _Phase.over && landed) return;
+    // Band edges, then the needle.
+    final edge = Paint()..color = AppTheme.up.withValues(alpha: 0.8);
+    canvas.drawRect(
+        Rect.fromLTWH(size.width * bandLow - 0.5, 0, 1.4, size.height), edge);
+    canvas.drawRect(
+        Rect.fromLTWH(size.width * bandHigh - 0.5, 0, 1.4, size.height), edge);
 
-    // The fish tracks in from the far side as you gain on it, and yaws about
-    // when it runs. Nothing here is authoritative — it mirrors state the server
-    // already fixed at cast time.
-    final near = phase == _Phase.waiting ? 0.0 : progress;
-    final wobble = surging ? math.sin(t * 18) * 16 : math.sin(t * 3) * 5;
-    final fx = size.width * (0.86 - 0.42 * near) + wobble;
-    final fy = size.height * (0.74 - 0.16 * near) + math.sin(t * 2.2) * 6;
-
-    final rodX = size.width * 0.12;
-    final rodY = size.height * 0.16;
-    final line = Paint()
-      ..color = Colors.white.withValues(alpha: tension > 0.75 ? 0.85 : 0.45)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = tension > 0.75 ? 1.8 : 1.1;
-    // A slack line bows; a loaded one goes straight, which is the tell you can
-    // read without looking at the gauge.
-    final sag = (1 - tension.clamp(0.0, 1.0)) * 34;
-    final path = Path()
-      ..moveTo(rodX, rodY)
-      ..quadraticBezierTo(
-          (rodX + fx) / 2, (rodY + fy) / 2 + sag, fx, fy);
-    canvas.drawPath(path, line);
-
-    final r = 13.0 + 30.0 * shadowScale;
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(fx, fy), width: r * 2.3, height: r),
+    canvas.drawRect(
+      Rect.fromLTWH(w - 1.2, -1, 2.4, size.height + 2),
       Paint()
-        ..color = Colors.black.withValues(alpha: 0.45)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+        ..color = Colors.white
+        ..maskFilter = strain > 0
+            ? const MaskFilter.blur(BlurStyle.solid, 3)
+            : null,
+    );
+
+    canvas.restore();
+    canvas.drawRRect(
+      r,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.14)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
     );
   }
 
   @override
-  bool shouldRepaint(_FightPainter old) => true;
+  bool shouldRepaint(_GaugePainter old) =>
+      old.tension != tension || old.strain != strain;
 }

@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,6 +14,7 @@ import '../../profile/data/profile_repository.dart';
 import '../data/fishing_repository.dart';
 import '../domain/fishery.dart';
 import 'fight_panel.dart';
+import 'sea.dart';
 
 /// The Fishery.
 ///
@@ -271,24 +270,30 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(fisheryProvider);
+    // A fight takes the whole screen, chrome included. It is the one part of
+    // the fishery that is a game rather than a page, and sharing the frame with
+    // an app bar and a scroll view was what made it read as a widget.
+    final fighting = _hookup?.fight != null;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: const BackOrHome(home: '/arcade'),
-        title: const Text('The Fishery'),
-        actions: [
-          IconButton(
-            tooltip: 'Catch log',
-            icon: const Icon(Icons.menu_book_outlined),
-            onPressed: () => showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              builder: (_) => const _CatchLogSheet(),
+      appBar: fighting
+          ? null
+          : AppBar(
+              leading: const BackOrHome(home: '/arcade'),
+              title: const Text('The Fishery'),
+              actions: [
+                IconButton(
+                  tooltip: 'Catch log',
+                  icon: const Icon(Icons.menu_book_outlined),
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => const _CatchLogSheet(),
+                  ),
+                ),
+                const _SoundToggle(),
+              ],
             ),
-          ),
-          const _SoundToggle(),
-        ],
-      ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
@@ -307,18 +312,21 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen> {
                 .addPostFrameCallback((_) => _clearStaleHook(stale!));
           }
 
+          if (_hookup?.fight != null) {
+            return FightPanel(
+              key: ValueKey(_hookup!.encounterId),
+              fight: _hookup!.fight!,
+              spotName: fishery.trip?.spotName ?? '',
+              onFinished: _resolve,
+            );
+          }
+
           return RefreshIndicator(
             onRefresh: () async => _refresh(),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
               children: [
-                if (_hookup?.fight != null)
-                  FightPanel(
-                    key: ValueKey(_hookup!.encounterId),
-                    fight: _hookup!.fight!,
-                    onFinished: _resolve,
-                  )
-                else if (fishery.isOnTrip)
+                if (fishery.isOnTrip)
                   _DeckPanel(fishery: fishery, result: _lastResult)
                 else
                   _HarbourPanel(fishery: fishery),
@@ -370,37 +378,36 @@ class _HarbourPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _WaterFrame(
-      height: 180,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                fishery.boatName.toUpperCase(),
-                style: TextStyle(
-                  letterSpacing: 2,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white.withValues(alpha: 0.45),
-                ),
+    return SeaFrame(
+      height: 210,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              fishery.boatName.toUpperCase(),
+              style: TextStyle(
+                letterSpacing: 2,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.white.withValues(alpha: 0.55),
+                shadows: const [Shadow(blurRadius: 8, color: Colors.black87)],
               ),
-              const SizedBox(height: 10),
-              Text(
-                fishery.holdIsFull
-                    ? 'The hold is full. Sell the catch to make room.'
-                    : 'Moored up. Your boat fishes on its own while you are '
-                        'away — or pick a spot and go out.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.72),
-                  height: 1.5,
-                ),
+            ),
+            const Spacer(),
+            Text(
+              fishery.holdIsFull
+                  ? 'The hold is full. Sell the catch to make room.'
+                  : 'Moored up. Your boat fishes on its own while you are '
+                      'away — or pick a spot and go out.',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                height: 1.45,
+                shadows: const [Shadow(blurRadius: 10, color: Colors.black)],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -418,8 +425,12 @@ class _DeckPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final trip = fishery.trip!;
     final r = result;
-    return _WaterFrame(
-      height: 210,
+    // Out on the water: the boat is under you, not in front of you, so it is
+    // not in shot.
+    return SeaFrame(
+      height: 230,
+      palette: SeaPalette.open,
+      showBoat: false,
       child: Stack(
         children: [
           Positioned(
@@ -433,7 +444,8 @@ class _DeckPanel extends StatelessWidget {
                 letterSpacing: 2,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: Colors.white.withValues(alpha: 0.45),
+                color: Colors.white.withValues(alpha: 0.55),
+                shadows: const [Shadow(blurRadius: 8, color: Colors.black87)],
               ),
             ),
           ),
@@ -448,8 +460,11 @@ class _DeckPanel extends StatelessWidget {
                             : 'Lines in the water. Cast when you are ready.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.7),
+                          color: Colors.white.withValues(alpha: 0.82),
                           height: 1.5,
+                          shadows: const [
+                            Shadow(blurRadius: 10, color: Colors.black)
+                          ],
                         ),
                       ),
                     )
@@ -462,61 +477,6 @@ class _DeckPanel extends StatelessWidget {
       ),
     );
   }
-}
-
-class _WaterFrame extends StatelessWidget {
-  const _WaterFrame({required this.height, required this.child});
-
-  final double height;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0E3A5C), Color(0xFF061E30)],
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: _WaterPainter())),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _WaterPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (var layer = 0; layer < 3; layer++) {
-      final paint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.05 + layer * 0.03)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2;
-      final baseY = size.height * (0.55 + layer * 0.13);
-      final amplitude = 4.0 + layer * 2;
-      final path = Path()..moveTo(0, baseY);
-      for (double x = 0; x <= size.width; x += 6) {
-        path.lineTo(
-          x,
-          baseY +
-              math.sin((x / size.width * 4 * math.pi) + layer * 1.3) * amplitude,
-        );
-      }
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_WaterPainter old) => false;
 }
 
 /// The reveal. Everything on this card was decided by the server at cast time;

@@ -77,6 +77,53 @@ abstract final class Sfx {
             delay: 0.03),
       ]);
 
+  /// Something heavy breaking the surface. Bigger and wetter than [splash] —
+  /// this is the bite committing, and the fish coming over the gunwale.
+  static void splashBig() => _play(const [
+        Voice(wave: 'noise', freq: 0, duration: 0.34, gain: 0.30, filterHz: 700),
+        Voice(
+            wave: 'noise',
+            freq: 0,
+            duration: 0.42,
+            gain: 0.16,
+            filterHz: 2400,
+            delay: 0.05),
+        Voice(
+            wave: 'sine',
+            freq: 420,
+            endFreq: 90,
+            duration: 0.26,
+            gain: 0.12,
+            attack: 0.01),
+      ]);
+
+  /// Line peeling off the spool: the drag screaming while the fish runs. The
+  /// one sound in the fight that means "let go".
+  static void drag() => _play(const [
+        Voice(
+            wave: 'sawtooth',
+            freq: 130,
+            endFreq: 320,
+            duration: 0.45,
+            gain: 0.07,
+            attack: 0.04),
+        Voice(
+            wave: 'noise', freq: 0, duration: 0.45, gain: 0.10, filterHz: 1800),
+      ]);
+
+  /// The line parting. A hard crack and then nothing — deliberately abrupt,
+  /// because that is exactly how it feels.
+  static void snap() => _play(const [
+        Voice(wave: 'noise', freq: 0, duration: 0.07, gain: 0.34, filterHz: 5200),
+        Voice(
+            wave: 'square',
+            freq: 900,
+            endFreq: 70,
+            duration: 0.20,
+            gain: 0.14,
+            attack: 0.001),
+      ]);
+
   /// A routine catch — two friendly ascending notes.
   static void catchCommon() => _play(const [
         Voice(wave: 'triangle', freq: 523, duration: 0.10, gain: 0.14),
