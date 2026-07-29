@@ -29,6 +29,8 @@ library;
 
 import 'dart:math' as math;
 
+import '../../../core/json.dart';
+
 /// What the fish is doing.
 enum Move { work, run, jump, thrash, sound, bore }
 
@@ -125,6 +127,38 @@ class EncounterProfile {
     required this.staminaPerRead,
     this.graceMisses = 0,
   });
+
+  /// Built from the same `fight` blob the old profile reads. Every field has a
+  /// defensible default, so an encounter rolled before the server knew about
+  /// any of this still produces a playable fight rather than a crash.
+  factory EncounterProfile.fromJson(Map<String, dynamic> json) {
+    final moves = jsonInt(json['moves']);
+    final safeMoves = moves > 0 ? moves : 4;
+    return EncounterProfile(
+      style: FightStyle.parse(json['style'] as String?),
+      staminaMs: json['stamina_ms'] == null
+          ? 12000
+          : jsonDouble(json['stamina_ms']),
+      moves: safeMoves,
+      readMs: json['read_ms'] == null ? 900 : jsonDouble(json['read_ms']),
+      tellMs: json['tell_ms'] == null ? 500 : jsonDouble(json['tell_ms']),
+      holdMs: json['hold_ms'] == null ? 700 : jsonDouble(json['hold_ms']),
+      gainPerPump:
+          json['gain_per_pump'] == null ? 0.025 : jsonDouble(json['gain_per_pump']),
+      lossOnMiss:
+          json['loss_on_miss'] == null ? 0.08 : jsonDouble(json['loss_on_miss']),
+      staminaPerRead: json['stamina_per_read'] == null
+          ? 1 / math.max(1, safeMoves - 1)
+          : jsonDouble(json['stamina_per_read']),
+      graceMisses: json['grace_misses'] == null ? 1 : jsonInt(json['grace_misses']),
+    );
+  }
+
+  /// Whether the server actually described a reading contest, as opposed to us
+  /// having filled in every default. The panel uses this to decide which fight
+  /// to play, so a stale encounter never lands in a half-configured one.
+  static bool describedIn(Map<String, dynamic> json) =>
+      json['style'] != null && json['moves'] != null;
 
   final FightStyle style;
 

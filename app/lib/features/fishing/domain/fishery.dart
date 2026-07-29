@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/json.dart';
+import 'encounter_sim.dart';
 
 /// Rarity drives colour, sound and celebration everywhere in the fishery, so it
 /// gets a real type rather than a bare string.
@@ -323,6 +324,7 @@ class FightProfile {
     this.diveMs = 0,
     this.divePull = 0,
     this.bandDecay = 0,
+    this.encounter,
   });
 
   factory FightProfile.fromJson(Map<String, dynamic> json) => FightProfile(
@@ -351,6 +353,11 @@ class FightProfile {
         diveMs: jsonInt(json['dive_ms']),
         divePull: jsonDouble(json['dive_pull']),
         bandDecay: jsonDouble(json['band_decay']),
+        // Only when the server actually described one. An older encounter has
+        // no reading contest in it and must keep playing the old fight.
+        encounter: EncounterProfile.describedIn(json)
+            ? EncounterProfile.fromJson(json)
+            : null,
       );
 
   final int biteMs;
@@ -396,6 +403,12 @@ class FightProfile {
 
   bool get hasSnags => snags > 0 && snagMs > 0;
   bool get hasDives => dives > 0 && diveMs > 0;
+
+  /// The reading contest, when the server described one. Null means this
+  /// encounter predates it and should be played as the old duty cycle.
+  final EncounterProfile? encounter;
+
+  bool get isReadingContest => encounter != null;
 
   /// How big the shape under the boat looks. The only clue you get before the
   /// fish is actually in it.
