@@ -308,9 +308,27 @@ class EncounterSim {
     return out;
   }
 
-  /// Advance the fight. [holding] is the counter the player currently has
-  /// selected; [Counter.pump] is the resting choice.
-  void step(double dtMs, {required Counter holding}) {
+  /// Answer whatever the fish is doing. Returns true if this actually resolved
+  /// a live hazard.
+  ///
+  /// Answering is an EVENT, not a state you can sit in. When it was a held
+  /// selection two things went wrong: the panel had to yank the selection back
+  /// to pump the instant a read landed, which felt like the button glitching
+  /// out from under you — and worse, you could simply leave GIVE LINE selected
+  /// and be credited with reading a run you never saw coming. A reaction test
+  /// you can pre-empt is not a reaction test.
+  bool answer(Counter played) {
+    if (isOver) return false;
+    final active = _active;
+    if (active == null || active.answered || telling) return false;
+    _answer(active, played, correct: played == active.move.answer);
+    return true;
+  }
+
+  /// Advance the fight. [pumping] is whether the angler is working the rod,
+  /// which is the only thing that gains ground while the fish is not doing
+  /// anything to react to.
+  void step(double dtMs, {required bool pumping}) {
     if (isOver) return;
     elapsedMs += dtMs;
 
@@ -326,23 +344,20 @@ class EncounterSim {
 
     final active = _active;
     if (active != null && !active.answered) {
-      if (!telling) {
-        // The window is open. An answer counts the moment it is selected.
-        if (holding == active.move.answer) {
-          _answer(active, holding, correct: true);
-        } else if (readPressure >= 1.0) {
-          // Time ran out, which is the same as being wrong.
-          _answer(active, holding, correct: false);
-        }
+      // Doing nothing at all runs the window out. That is a miss, and it is a
+      // miss with the line still loaded — you never gave it anything.
+      if (!telling && readPressure >= 1.0) {
+        _answer(active, null, correct: false);
       }
-    } else if (active == null || active.answered) {
+    } else {
       // Nothing to react to. Pumping is the only thing that gains ground, and
-      // only once any held counter has run its course.
-      if (elapsedMs >= _holdUntil && holding == Counter.pump) {
-        stamina -=
-            profile.gainPerPump * profile.staminaMs * (dtMs / 1000.0);
+      // only once the answer that was played has run its course.
+      if (elapsedMs >= _holdUntil) {
+        if (pumping) {
+          stamina -= profile.gainPerPump * profile.staminaMs * (dtMs / 1000.0);
+        }
+        _active = null;
       }
-      if (elapsedMs >= _holdUntil) _active = null;
     }
 
     stamina = stamina.clamp(0.0, profile.staminaMs);
@@ -362,7 +377,8 @@ class EncounterSim {
     }
   }
 
-  void _answer(Hazard h, Counter played, {required bool correct}) {
+  /// [played] is null when the window simply ran out.
+  void _answer(Hazard h, Counter? played, {required bool correct}) {
     h
       ..answered = true
       ..correct = correct;
@@ -373,9 +389,9 @@ class EncounterSim {
     } else {
       misses++;
       stamina += profile.lossOnMiss * profile.staminaMs;
-      // Giving line or bowing puts slack in it; pumping or levering keeps it
-      // loaded. That is the difference between the hook falling out and the
-      // leader letting go.
+      // Giving line or bowing puts slack in it; pumping, levering, or standing
+      // there doing nothing all keep it loaded. That is the difference between
+      // the hook falling out and the leader letting go.
       _slackAtFailure =
           played == Counter.giveLine || played == Counter.bow;
     }

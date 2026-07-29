@@ -80,7 +80,7 @@ void main() {
       final f = profile();
       final read = _rate(f, (s) => _human(seed: s, reactionMs: 400));
       final mash = _rate(f, (s) => _alwaysPump);
-      final panic = _rate(f, (s) => _alwaysGiveLine);
+      final panic = _rate(f, (s) => _always(Counter.giveLine));
 
       expect(read.landed, greaterThan(0.75));
       expect(mash.landed, lessThan(0.15),
@@ -149,11 +149,40 @@ void main() {
       final first = sim.hazards.first;
       var sawTell = false;
       while (!sim.isOver && sim.elapsedMs < first.at + 400) {
-        sim.step(16, holding: Counter.pump);
+        sim.step(16, pumping: true);
         if (sim.telling) sawTell = true;
       }
       expect(sawTell, isTrue,
           reason: 'the fish must show you it is coming before it commits');
+    });
+
+    test('an answer cannot be pre-empted', () {
+      // Answering is an event, not a stance. Sitting on GIVE LINE before the
+      // fish has committed must not be credited as having read a run — a
+      // reaction test you can camp in is not a reaction test, and when answers
+      // were a held selection this was exactly the hole.
+      final sim = EncounterSim(profile(), random: math.Random(2));
+      final first = sim.hazards.first;
+
+      // Spam every counter throughout the tell. None of it should land.
+      while (!sim.isOver && sim.elapsedMs < first.at + 200) {
+        for (final c in Counter.values) {
+          expect(sim.answer(c), isFalse,
+              reason: 'nothing to answer yet at ${sim.elapsedMs}ms');
+        }
+        sim.step(16, pumping: true);
+      }
+      expect(sim.reads, 0);
+      expect(sim.misses, 0);
+
+      // Once it commits, the same tap counts — exactly once.
+      while (!sim.isOver && !sim.awaitingAnswer) {
+        sim.step(16, pumping: true);
+      }
+      expect(sim.answer(sim.move.answer), isTrue);
+      expect(sim.answer(sim.move.answer), isFalse,
+          reason: 'a hazard is answered once, not repeatedly');
+      expect(sim.reads, 1);
     });
 
     test('losing it slack throws the hook; losing it tight breaks you off', () {
@@ -163,7 +192,7 @@ void main() {
       final f = profile(grace: 0);
 
       // Giving line to a fish that is not running puts slack in it.
-      expect(_play(f, _alwaysGiveLine, seed: 5), EncounterEnd.threwTheHook);
+      expect(_play(f, _always(Counter.giveLine), seed: 5), EncounterEnd.threwTheHook);
 
       // Pumping through everything keeps it loaded until something lets go.
       expect(_play(f, _alwaysPump, seed: 5), EncounterEnd.brokeOff);
@@ -175,7 +204,19 @@ void main() {
 // Harness
 // ---------------------------------------------------------------------------
 
-typedef _Policy = Counter Function(EncounterSim sim, double dtMs);
+/// Returns the counter to PLAY this frame, or null to just keep pumping.
+/// Answering is a one-shot event now, so a policy that wants to answer says so
+/// once rather than sitting on a selection.
+typedef _Policy = Counter? Function(EncounterSim sim, double dtMs);
+
+/// Runs one encounter to its end under [policy].
+void _drive(EncounterSim sim, _Policy policy, double limitMs) {
+  while (!sim.isOver && sim.elapsedMs < limitMs) {
+    final play = policy(sim, 16);
+    if (play != null && play != Counter.pump) sim.answer(play);
+    sim.step(16, pumping: play == null || play == Counter.pump);
+  }
+}
 
 /// Someone who reads the fish, but not instantly and not identically twice.
 ///
@@ -192,24 +233,49 @@ _Policy _human({int seed = 0, double reactionMs = 420, double spread = 150}) {
   Move? watching;
   var budget = 0.0;
   var since = 0.0;
+  var played = false;
   return (sim, dtMs) {
     if (!sim.awaitingAnswer) {
       watching = null;
-      return Counter.pump;
+      return null;
     }
     if (watching != sim.move) {
       watching = sim.move;
       budget = reactionMs + (rng.nextDouble() * 2 - 1) * spread;
       since = 0;
+      played = false;
     }
     since += dtMs;
-    return since >= budget ? sim.move.answer : Counter.pump;
+    if (!played && since >= budget) {
+      played = true;
+      return sim.move.answer;
+    }
+    return null;
   };
 }
 
-Counter _alwaysPump(EncounterSim sim, double dtMs) => Counter.pump;
+Counter? _alwaysPump(EncounterSim sim, double dtMs) => null;
 
-Counter _alwaysGiveLine(EncounterSim sim, double dtMs) => Counter.giveLine;
+/// Answers everything with the same thing, once per hazard.
+_Policy _always(Counter c) {
+  Move? watching;
+  var played = false;
+  return (sim, dtMs) {
+    if (!sim.awaitingAnswer) {
+      watching = null;
+      return null;
+    }
+    if (watching != sim.move) {
+      watching = sim.move;
+      played = false;
+    }
+    if (!played) {
+      played = true;
+      return c;
+    }
+    return null;
+  };
+}
 
 class _Outcome {
   const _Outcome(this.landed, this.meanScore);
@@ -219,9 +285,7 @@ class _Outcome {
 
 EncounterEnd _play(EncounterProfile f, _Policy policy, {required int seed}) {
   final sim = EncounterSim(f, random: math.Random(seed));
-  while (!sim.isOver && sim.elapsedMs < f.staminaMs * 4) {
-    sim.step(16, holding: policy(sim, 16));
-  }
+  _drive(sim, policy, f.staminaMs * 4);
   return sim.end;
 }
 
@@ -233,10 +297,7 @@ _Outcome _rate(EncounterProfile f, _Policy Function(int seed) policy,
   var score = 0.0;
   for (var i = 0; i < trials; i++) {
     final sim = EncounterSim(f, random: math.Random(i));
-    final p = policy(i);
-    while (!sim.isOver && sim.elapsedMs < f.staminaMs * 4) {
-      sim.step(16, holding: p(sim, 16));
-    }
+    _drive(sim, policy(i), f.staminaMs * 4);
     if (sim.end == EncounterEnd.landed) wins++;
     score += sim.score;
   }

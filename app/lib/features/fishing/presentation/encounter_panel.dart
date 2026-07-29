@@ -57,8 +57,15 @@ class _EncounterPanelState extends State<EncounterPanel>
   double _last = 0;
   double _biteAt = 0;
 
-  /// What the player currently has selected. Pump is the resting choice.
-  Counter _holding = Counter.pump;
+  /// Whether the angler is on the rod. PUMP is the one counter that is a held
+  /// action; the other three are answers, and an answer is a thing you do once.
+  bool _pumping = false;
+
+  /// The counter last played, and when — purely so the button can flash. It is
+  /// not state the simulation reads, which is the entire fix for the selection
+  /// snapping out from under the player mid-run.
+  Counter? _played;
+  double _playedAt = -9999;
 
   Move? _announced;
   int _lastReads = 0;
@@ -127,7 +134,7 @@ class _EncounterPanelState extends State<EncounterPanel>
 
   void _stepFight(double dtMs) {
     final wasMove = _sim.move;
-    _sim.step(dtMs, holding: _holding);
+    _sim.step(dtMs, pumping: _pumping);
 
     // Announce a hazard once, the instant it commits — this is the beat the
     // whole mechanic hangs on.
@@ -149,20 +156,18 @@ class _EncounterPanelState extends State<EncounterPanel>
     }
     if (!_sim.awaitingAnswer && wasMove == Move.work) _announced = null;
 
-    // Feedback on the answer itself, right or wrong.
+    // Feedback on the answer itself, right or wrong. Nothing here touches what
+    // the player is holding — the answer has already been played.
     if (_sim.reads > _lastReads) {
       _lastReads = _sim.reads;
       Sfx.catchCommon();
       _announced = null;
-      // A correct read releases whatever you were holding: back to pumping.
-      _holding = Counter.pump;
     }
     if (_sim.misses > _lastMisses) {
       _lastMisses = _sim.misses;
       Sfx.nope();
       _shakeMag += 10;
       _announced = null;
-      _holding = Counter.pump;
     }
 
     switch (_sim.end) {
@@ -195,9 +200,26 @@ class _EncounterPanelState extends State<EncounterPanel>
 
   double get _reelRate => switch (_phase) {
         _Phase.fighting when _sim.move == Move.run => -12,
-        _Phase.fighting when _holding == Counter.pump => 8.5,
+        _Phase.fighting when _pumping => 8.5,
         _ => 0.0,
       };
+
+  /// Play a counter. Answers are one-shot; pumping is handled by the hold.
+  void _play(Counter c) {
+    if (_phase != _Phase.fighting) return;
+    setState(() {
+      _played = c;
+      _playedAt = _elapsed;
+    });
+    if (c == Counter.pump) return;
+    if (_sim.answer(c)) {
+      _shakeMag += 3;
+    } else {
+      // Answering thin air is not punished — a fish that is not doing anything
+      // cannot be got wrong — but it should still feel like nothing happened.
+      Sfx.tick();
+    }
+  }
 
   void _hook() {
     if (_phase != _Phase.bite) return;
@@ -246,7 +268,7 @@ class _EncounterPanelState extends State<EncounterPanel>
         Move.run => 0.88,
         Move.sound || Move.bore => 0.72,
         Move.jump || Move.thrash => 0.55,
-        Move.work => _holding == Counter.pump ? 0.5 : 0.3,
+        Move.work => _pumping ? 0.55 : 0.3,
       };
 
   double get _sceneSurge =>
@@ -286,7 +308,7 @@ class _EncounterPanelState extends State<EncounterPanel>
                     strain: _sim.awaitingAnswer ? _sim.readPressure : 0,
                     fishScale: _f.shadowScale,
                     hooked: _phase == _Phase.fighting,
-                    reeling: _holding == Counter.pump,
+                    reeling: _pumping,
                     bobber: _phase == _Phase.waiting || _phase == _Phase.bite,
                     bobberDip: _phase == _Phase.bite ? 1 : 0,
                     // A jumping fish is genuinely out of the water, so it
@@ -402,8 +424,12 @@ class _EncounterPanelState extends State<EncounterPanel>
     }
   }
 
-  /// The four answers. Always all four, always in the same places — a button
+  /// The four counters. Always all four, always in the same places — a button
   /// that moves or disappears cannot be learned, and learning them is the game.
+  ///
+  /// PUMP is held; the other three are tapped. That split is the whole reason
+  /// letting the line loose felt glitchy before: an answer was a selection the
+  /// panel then had to take away again.
   Widget _counters() {
     return Row(
       children: [
@@ -413,11 +439,17 @@ class _EncounterPanelState extends State<EncounterPanel>
               padding: const EdgeInsets.symmetric(horizontal: 3),
               child: _CounterButton(
                 counter: c,
-                selected: _holding == c,
-                // Once a hazard is answered there is nothing to get wrong, so
-                // the buttons go quiet rather than inviting a pointless tap.
-                enabled: true,
-                onTap: () => setState(() => _holding = c),
+                held: c == Counter.pump && _pumping,
+                // A tapped answer flashes for a beat so the input is visibly
+                // acknowledged even when the fish's reaction lags it.
+                flash: _played == c && _elapsed - _playedAt < 260,
+                onDown: () {
+                  if (c == Counter.pump) setState(() => _pumping = true);
+                  _play(c);
+                },
+                onUp: () {
+                  if (c == Counter.pump) setState(() => _pumping = false);
+                },
               ),
             ),
           ),
@@ -561,15 +593,21 @@ class _RingPainter extends CustomPainter {
 class _CounterButton extends StatelessWidget {
   const _CounterButton({
     required this.counter,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
+    required this.held,
+    required this.flash,
+    required this.onDown,
+    required this.onUp,
   });
 
   final Counter counter;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
+
+  /// Only PUMP is ever held.
+  final bool held;
+
+  /// A brief acknowledgement of a tap, independent of what the fish does next.
+  final bool flash;
+  final VoidCallback onDown;
+  final VoidCallback onUp;
 
   @override
   Widget build(BuildContext context) {
@@ -579,52 +617,55 @@ class _CounterButton extends StatelessWidget {
       Counter.bow => AppTheme.gold,
       Counter.sidePressure => AppTheme.brand,
     };
-    return Material(
-      color: selected
-          ? colour.withValues(alpha: 0.85)
-          : Colors.black.withValues(alpha: 0.55),
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        child: Container(
-          height: 62,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: selected ? colour : colour.withValues(alpha: 0.45),
-              width: selected ? 2 : 1.2,
+    final lit = held || flash;
+    return Listener(
+      onPointerDown: (_) => onDown(),
+      onPointerUp: (_) => onUp(),
+      onPointerCancel: (_) => onUp(),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 90),
+        height: 64,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: lit
+              ? colour.withValues(alpha: 0.85)
+              : Colors.black.withValues(alpha: 0.55),
+          border: Border.all(
+            color: lit ? colour : colour.withValues(alpha: 0.45),
+            width: lit ? 2 : 1.2,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: lit
+              ? [BoxShadow(color: colour.withValues(alpha: 0.5), blurRadius: 14)]
+              : null,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              switch (counter) {
+                Counter.pump => Icons.keyboard_double_arrow_up,
+                Counter.giveLine => Icons.linear_scale,
+                Counter.bow => Icons.keyboard_double_arrow_down,
+                Counter.sidePressure => Icons.swap_horiz,
+              },
+              size: 20,
+              color: lit ? Colors.black : colour,
             ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                switch (counter) {
-                  Counter.pump => Icons.keyboard_double_arrow_up,
-                  Counter.giveLine => Icons.linear_scale,
-                  Counter.bow => Icons.keyboard_double_arrow_down,
-                  Counter.sidePressure => Icons.swap_horiz,
-                },
-                size: 20,
-                color: selected ? Colors.black : colour,
+            const SizedBox(height: 3),
+            Text(
+              counter == Counter.pump ? 'HOLD TO PUMP' : counter.label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: lit ? Colors.black : Colors.white,
+                fontSize: 8.5,
+                height: 1.1,
+                letterSpacing: 0.6,
+                fontWeight: FontWeight.w900,
               ),
-              const SizedBox(height: 3),
-              Text(
-                counter.label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: selected ? Colors.black : Colors.white,
-                  fontSize: 8.5,
-                  height: 1.1,
-                  letterSpacing: 0.6,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
