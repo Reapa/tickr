@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../domain/encounter_sim.dart' show Move;
 import 'biome.dart';
 import 'fish_shapes.dart';
 import 'sea.dart';
@@ -32,6 +33,8 @@ class FightScene extends CustomPainter {
     required this.strain,
     required this.fishScale,
     this.plan = BodyPlan.roundfish,
+    this.action = Move.work,
+    this.actionPhase = 0,
     required this.hooked,
     required this.reeling,
     required this.bobber,
@@ -65,6 +68,17 @@ class FightScene extends CustomPainter {
   /// before it is in the boat, so it is doing all the work of telling you what
   /// you have hooked.
   final BodyPlan plan;
+
+  /// What the animal is doing right now, and how far through it — 0 at the
+  /// start of the move, 1 at the end.
+  ///
+  /// The scene used to be told only "tension" and "surge", so a jump borrowed
+  /// the landing leap and a sound was just a number going down. Every move now
+  /// gets its own choreography AND its own camera, because what sells a fish
+  /// going deep is not the fish moving down the frame — it is the frame going
+  /// with it.
+  final Move action;
+  final double actionPhase;
 
   /// False during the wait, when there is a float on the water and nothing else.
   final bool hooked;
@@ -126,10 +140,82 @@ class FightScene extends CustomPainter {
     final near = progress;
     final sway =
         surge > 0 ? math.sin(t * 11) * 18 * surge : math.sin(t * 1.7) * 7;
-    final x = size.width * (0.90 - 0.44 * near) + sway;
-    final y = size.height * (0.80 - 0.28 * near) + math.sin(t * 2.1) * 7;
+    var x = size.width * (0.90 - 0.44 * near) + sway;
+    var y = size.height * (0.80 - 0.28 * near) + math.sin(t * 2.1) * 7;
+
+    // Each move drags it off its resting track. `swell` is a rise-and-fall so
+    // a move begins and ends where the fish would otherwise have been, and the
+    // choreography cannot leave it stranded somewhere odd.
+    final k = actionPhase.clamp(0.0, 1.0);
+    final swell = math.sin(k * math.pi);
+    switch (action) {
+      case Move.jump:
+        // Ballistic: out of the water and back into it. The vertical is an
+        // actual arc rather than a sine, because a fish coming down does not
+        // decelerate on the way in.
+        //
+        // The arc STARTS below the waterline and ends below it, so the jump has
+        // a visible exit and a visible entry. Launching it from the surface
+        // meant the fish was already clear of the water on the first frame and
+        // simply appeared in the air.
+        y = _jumpY(size, k);
+        x += swell * size.width * 0.06;
+      case Move.sound:
+        // Straight down, hard, and it keeps going for most of the move.
+        y += k * size.height * 0.22;
+        x -= k * size.width * 0.03;
+      case Move.run:
+        // Tears away across the frame — the one move that is mostly sideways.
+        x += swell * size.width * 0.30;
+        y -= swell * size.height * 0.03;
+      case Move.thrash:
+        // Barely travels. All of it is violence in place.
+        x += math.sin(t * 26) * 13 * swell;
+        y += math.sin(t * 31) * 8 * swell;
+      case Move.bore:
+        // Toward the structure, which lives on the left of every biome that
+        // has any.
+        x -= k * size.width * 0.16;
+        y += k * size.height * 0.06;
+      case Move.work:
+        break;
+    }
     return Offset(x, y);
   }
+
+  /// Where the camera is, relative to its resting position. A sounding fish
+  /// pulls the frame down after it; a jump lifts it; a run drifts with it.
+  Offset _camera(Size size) {
+    final k = actionPhase.clamp(0.0, 1.0);
+    final swell = math.sin(k * math.pi);
+    return switch (action) {
+      Move.sound => Offset(0, -k * size.height * 0.10),
+      Move.jump => Offset(0, swell * size.height * 0.05),
+      Move.run => Offset(-swell * size.width * 0.05, 0),
+      Move.bore => Offset(swell * size.width * 0.03, 0),
+      _ => Offset.zero,
+    };
+  }
+
+  /// The jump's trajectory. Sits below the waterline at both ends.
+  double _jumpY(Size size, double k) {
+    final launch = size.height * (_surface + 0.14);
+    final rise = 4 * k * (1 - k); // parabola, 0 -> 1 -> 0
+    return launch - rise * size.height * 0.34;
+  }
+
+  /// Whether the fish is genuinely clear of the water, rather than merely in
+  /// the middle of a jump. Drawing it unclipped for the whole move let it swim
+  /// through the surface bands on the way up.
+  bool _isAirborne(Size size) {
+    if (action != Move.jump) return false;
+    return _jumpY(size, actionPhase.clamp(0.0, 1.0)) <
+        size.height * _surface - 6;
+  }
+
+  /// How wet it still looks, 0..1 — full at the moment it clears.
+  double get _airborne =>
+      action == Move.jump ? math.sin(actionPhase.clamp(0.0, 1.0) * math.pi) : 0;
 
   Offset _rodButt(Size size) => Offset(size.width * 0.07, size.height * 1.02);
 
@@ -167,7 +253,8 @@ class FightScene extends CustomPainter {
     final p = palette;
 
     canvas.save();
-    canvas.translate(shake.dx, shake.dy);
+    final cam = _camera(size);
+    canvas.translate(shake.dx + cam.dx, shake.dy + cam.dy);
 
     final horizonY = size.height * _horizon;
     final surfaceRest = size.height * _surface;
@@ -258,7 +345,9 @@ class FightScene extends CustomPainter {
     _paintSubsurfaceLine(canvas, linePts, entryIndex);
     if (!hooked) _paintLeader(canvas, size, float, chop, p);
     _paintBubbles(canvas, p);
-    if (breach < 0.5) _paintFish(canvas, size, fish, p);
+    // A jumping fish is above the waterline, so it must NOT be drawn inside the
+    // clip that keeps everything else under it.
+    if (breach < 0.5 && !_isAirborne(size)) _paintFish(canvas, size, fish, p);
     biome.paintNear(canvas, size, t, chop);
     canvas.restore();
 
@@ -272,6 +361,8 @@ class FightScene extends CustomPainter {
 
     if (bobber) _paintBobber(canvas, size, float, p);
     if (breach >= 0.5) _paintBreach(canvas, size, entry, p);
+    // Out of the water, over the surface bands, with the light on its flank.
+    if (_isAirborne(size) && breach < 0.5) _paintAirborne(canvas, size, fish, p);
 
     _paintDrops(canvas, p);
     _paintRodAndBoat(canvas, size, tip, ctrl, p);
@@ -661,6 +752,64 @@ class FightScene extends CustomPainter {
       );
     }
     canvas.restore();
+  }
+
+  /// A fish in mid-air during a jump.
+  ///
+  /// The angle comes from the arc it is actually on rather than being animated
+  /// separately — nose up on the way out, over at the top, nose down on the way
+  /// in. Getting that wrong is what makes a jump read as a sticker being slid
+  /// up the screen.
+  void _paintAirborne(Canvas canvas, Size size, Offset at, SeaPalette p) {
+    final k = actionPhase.clamp(0.0, 1.0);
+    final length = (46 + 108 * fishScale) * (0.80 + 0.35 * progress);
+    // d(height)/dk of the 4k(1-k) arc, so the pitch follows the trajectory.
+    final climb = 4 - 8 * k;
+    final pitch = -math.atan(climb * 0.55);
+
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.scale(-1, 1); // facing the boat
+    canvas.rotate(-pitch);
+
+    final shape = fishBody(plan, length, beat: math.sin(t * 26) * 1.1);
+    final wet = Color.lerp(p.deep, p.surface, 0.55)!;
+    for (final fin in shape.fins) {
+      canvas.drawPath(fin, Paint()..color = Color.lerp(wet, Colors.black, 0.2)!);
+    }
+    canvas.drawPath(shape.body, Paint()..color = wet);
+    // Wet flank catching the sky — the reason a jump reads at all.
+    canvas.save();
+    canvas.clipPath(shape.body);
+    final r =
+        Rect.fromCenter(center: Offset.zero, width: length, height: length * 0.7);
+    canvas.drawRect(
+      r,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0.55),
+            Colors.transparent,
+            p.foam.withValues(alpha: 0.55),
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ).createShader(r),
+    );
+    canvas.restore();
+    canvas.restore();
+
+    // Water coming off it, thrown along the direction of travel.
+    final trail = Paint()..color = p.foam.withValues(alpha: 0.5 * _airborne);
+    for (var i = 0; i < 7; i++) {
+      final s = i / 6;
+      canvas.drawCircle(
+        at.translate(length * 0.30 * s, length * 0.10 * s + climb * -3 * s),
+        2.4 * (1 - s),
+        trail,
+      );
+    }
   }
 
   /// The landing leap. The one moment the fish is fully out of the water, so it

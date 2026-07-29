@@ -79,6 +79,18 @@ class _EncounterPanelState extends State<EncounterPanel>
   int _lastReads = 0;
   int _lastMisses = 0;
 
+  /// When the current move COMMITTED — not when its tell began. The tell is a
+  /// wind-up; the choreography belongs to the move itself.
+  double _moveAt = -9999;
+  Move _sceneMove = Move.work;
+
+  /// 0..1 through whatever the fish is doing, for the scene to animate against.
+  double get _actionPhase {
+    if (_sceneMove == Move.work) return 0;
+    final span = widget.profile.readMs + widget.profile.holdMs;
+    return ((_elapsed - _moveAt) / span).clamp(0.0, 1.0);
+  }
+
   double _shakeMag = 0;
   Offset _shake = Offset.zero;
   double _breach = 0;
@@ -163,6 +175,15 @@ class _EncounterPanelState extends State<EncounterPanel>
       }
     }
     if (!_sim.awaitingAnswer && wasMove == Move.work) _announced = null;
+
+    // The scene's move starts the instant the fish commits, and ends when the
+    // simulation drops back to working. Tracked here rather than derived, so a
+    // move that is answered early still plays its choreography out.
+    final live = !_sim.telling ? _sim.move : Move.work;
+    if (live != _sceneMove) {
+      _sceneMove = live;
+      if (live != Move.work) _moveAt = _elapsed;
+    }
 
     // Feedback on the answer itself, right or wrong. Nothing here touches what
     // the player is holding — the answer has already been played.
@@ -316,6 +337,9 @@ class _EncounterPanelState extends State<EncounterPanel>
                     strain: _sim.awaitingAnswer ? _sim.readPressure : 0,
                     fishScale: _f.shadowScale,
                     plan: _plan,
+                    action:
+                        _phase == _Phase.fighting ? _sceneMove : Move.work,
+                    actionPhase: _actionPhase,
                     hooked: _phase == _Phase.fighting,
                     reeling: _pumping,
                     bobber: _phase == _Phase.waiting || _phase == _Phase.bite,
