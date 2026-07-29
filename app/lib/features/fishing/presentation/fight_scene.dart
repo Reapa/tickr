@@ -616,13 +616,22 @@ class FightScene extends CustomPainter {
         Colors.black, Color.lerp(p.surface, p.foam, 0.35)!, clarity * 0.55)!;
     final skin = Paint()
       ..color = body.withValues(alpha: 0.55 + 0.40 * clarity);
-    // Fins first and slightly darker, so they read as behind the flank rather
-    // than stuck on the front of it.
+    // Fins first, darker AND translucent — they are membrane stretched over
+    // rays, so light comes through them. Drawn opaque they read as bits of card
+    // glued to the side of the animal.
     final finPaint = Paint()
       ..color = Color.lerp(body, Colors.black, 0.25)!
-          .withValues(alpha: 0.5 + 0.35 * clarity);
+          .withValues(alpha: (0.34 + 0.30 * clarity));
     for (final fin in shape.fins) {
       canvas.drawPath(fin, finPaint);
+      // A brighter leading edge, which is where a fin actually catches light.
+      canvas.drawPath(
+        fin,
+        Paint()
+          ..color = p.foam.withValues(alpha: 0.14 * clarity)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.9,
+      );
     }
     canvas.drawPath(path, skin);
 
@@ -646,13 +655,18 @@ class FightScene extends CustomPainter {
       );
     }
 
-    // Belly catching the light from above, and a rim along the back. Only
-    // worth drawing once the fish is close enough to read.
-    if (clarity > 0.45) {
+    // Shading. A fish is not a flat colour: it is dark along the back, pale
+    // underneath, glossy where the light hits it, and covered in scales. Doing
+    // none of that was what made every one of these read as a paper cut-out no
+    // matter how good the outline was.
+    if (clarity > 0.25) {
       canvas.save();
       canvas.clipPath(path);
       final r = Rect.fromCenter(
-          center: Offset.zero, width: length, height: length * 0.7);
+          center: Offset.zero, width: length * 1.2, height: length * 0.8);
+
+      // 1. Countershading — genuinely how fish are coloured, and the single
+      //    biggest step away from a flat fill.
       canvas.drawRect(
         r,
         Paint()
@@ -660,19 +674,74 @@ class FightScene extends CustomPainter {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.white.withValues(alpha: 0.16 * clarity),
+              Colors.black.withValues(alpha: 0.42 * clarity),
               Colors.transparent,
-              p.foam.withValues(alpha: 0.28 * clarity),
+              p.foam.withValues(alpha: 0.40 * clarity),
             ],
-            stops: const [0.0, 0.55, 1.0],
+            stops: const [0.0, 0.48, 1.0],
           ).createShader(r),
       );
+
+      // 2. Scales: two crossed families of fine arcs. Cheap, and at a glance it
+      //    reads as texture rather than as pattern.
+      if (clarity > 0.55) {
+        final scale = Paint()
+          ..color = Colors.white.withValues(alpha: 0.05 * clarity)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8;
+        final step = length * 0.055;
+        for (var i = -6; i < 10; i++) {
+          final x = i * step;
+          canvas.drawArc(
+            Rect.fromCenter(
+                center: Offset(x, 0), width: step * 2.4, height: length * 0.62),
+            -math.pi * 0.62,
+            math.pi * 1.24,
+            false,
+            scale,
+          );
+        }
+      }
+
+      // 3. Caustics — the surface's own ripples drifting across its flank. This
+      //    is what ties the animal to the water it is in rather than leaving it
+      //    looking pasted on top.
+      // Clamped: the Reef's hard sunlight multiplier is 1.5, which turned these
+      // from a shimmer into white slashes painted down the flank.
+      final caustic = Paint()
+        ..color = p.foam.withValues(
+            alpha: 0.075 * clarity * biome.shafts.clamp(0.0, 1.0));
+      for (var i = 0; i < 4; i++) {
+        final x = ((t * 26 + i * length * 0.34) % (length * 1.5)) - length * 0.7;
+        canvas.drawOval(
+          Rect.fromCenter(
+              center: Offset(x, -length * 0.10),
+              width: length * 0.09,
+              height: length * 0.42),
+          caustic,
+        );
+      }
+
+      // 4. The wet highlight running along the top of the back.
+      canvas.drawOval(
+        Rect.fromCenter(
+            center: Offset(length * 0.02, -length * 0.20),
+            width: length * 0.62,
+            height: length * 0.10),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.16 * clarity)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
       canvas.restore();
-      // Eye.
+
+      // Eye, with a catchlight — the one detail that makes it look alive.
+      final eye = Offset(length * 0.34, -length * 0.045);
+      canvas.drawCircle(eye, length * 0.030,
+          Paint()..color = Colors.black.withValues(alpha: 0.85 * clarity));
       canvas.drawCircle(
-        Offset(length * 0.34, -length * 0.045),
-        length * 0.026,
-        Paint()..color = Colors.black.withValues(alpha: 0.8 * clarity),
+        eye.translate(-length * 0.008, -length * 0.010),
+        length * 0.010,
+        Paint()..color = Colors.white.withValues(alpha: 0.55 * clarity),
       );
     }
 
