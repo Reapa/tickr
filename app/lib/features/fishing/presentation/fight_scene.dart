@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'biome.dart';
+import 'fish_shapes.dart';
 import 'sea.dart';
 
 /// The fight, drawn.
@@ -30,6 +31,7 @@ class FightScene extends CustomPainter {
     required this.surge,
     required this.strain,
     required this.fishScale,
+    this.plan = BodyPlan.roundfish,
     required this.hooked,
     required this.reeling,
     required this.bobber,
@@ -58,6 +60,11 @@ class FightScene extends CustomPainter {
 
   /// Relative size of the fish, from the server's shadow class.
   final double fishScale;
+
+  /// What kind of animal it is. The silhouette is the only thing you see of it
+  /// before it is in the boat, so it is doing all the work of telling you what
+  /// you have hooked.
+  final BodyPlan plan;
 
   /// False during the wait, when there is a float on the water and nothing else.
   final bool hooked;
@@ -510,13 +517,23 @@ class FightScene extends CustomPainter {
     canvas.rotate(math.sin(t * 1.3) * 0.06 - 0.12 * progress * (flip.sign));
 
     final beatHz = 4.5 + surge * 11 + (reeling ? 2.5 : 0);
-    final path = fishPath(length,
+    final shape = fishBody(plan, length,
         beat: math.sin(t * beatHz), bank: math.sin(t * 0.9) * 0.25);
+    final path = shape.body;
 
     final body = Color.lerp(
         Colors.black, Color.lerp(p.surface, p.foam, 0.35)!, clarity * 0.55)!;
-    canvas.drawPath(
-        path, Paint()..color = body.withValues(alpha: 0.55 + 0.40 * clarity));
+    final skin = Paint()
+      ..color = body.withValues(alpha: 0.55 + 0.40 * clarity);
+    // Fins first and slightly darker, so they read as behind the flank rather
+    // than stuck on the front of it.
+    final finPaint = Paint()
+      ..color = Color.lerp(body, Colors.black, 0.25)!
+          .withValues(alpha: 0.5 + 0.35 * clarity);
+    for (final fin in shape.fins) {
+      canvas.drawPath(fin, finPaint);
+    }
+    canvas.drawPath(path, skin);
 
     // Where there is no sun, the animal lights itself. A row of photophores
     // along the flank is the only reason you can track it at all down there.
@@ -660,8 +677,13 @@ class FightScene extends CustomPainter {
     canvas.translate(at.dx, at.dy);
     canvas.scale(-1, 1);
     canvas.rotate(-0.85 + k * 1.5);
-    final path = fishPath(length, beat: math.sin(t * 22) * 1.2);
-    canvas.drawPath(path, Paint()..color = Color.lerp(p.deep, p.surface, 0.5)!);
+    final shape = fishBody(plan, length, beat: math.sin(t * 22) * 1.2);
+    final path = shape.body;
+    final skin = Paint()..color = Color.lerp(p.deep, p.surface, 0.5)!;
+    for (final fin in shape.fins) {
+      canvas.drawPath(fin, skin);
+    }
+    canvas.drawPath(path, skin);
     canvas.save();
     canvas.clipPath(path);
     final r =

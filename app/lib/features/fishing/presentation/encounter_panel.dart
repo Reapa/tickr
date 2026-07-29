@@ -9,6 +9,7 @@ import '../domain/encounter_sim.dart';
 import '../domain/fishery.dart';
 import 'biome.dart';
 import 'fight_scene.dart';
+import 'fish_shapes.dart';
 import 'sea.dart';
 
 /// The reading contest, on screen.
@@ -48,6 +49,13 @@ class _EncounterPanelState extends State<EncounterPanel>
   late final Ticker _ticker;
   late final EncounterSim _sim = EncounterSim(widget.profile);
   late final Biome _biome = Biome.of(widget.spotCode);
+
+  /// The species is deliberately withheld until it is in the boat, so the shape
+  /// is inferred from its size and how it fights. That is not a workaround —
+  /// it IS the shadow: a huge thing that runs is a shark, a thing that jumps
+  /// has a bill, and working that out mid-fight is the whole idea.
+  late final BodyPlan _plan =
+      BodyPlan.fromShadow(_f.shadow, widget.profile.style.name);
 
   final FightFx _fx = FightFx();
   final math.Random _rng = math.Random();
@@ -307,6 +315,7 @@ class _EncounterPanelState extends State<EncounterPanel>
                     surge: _sceneSurge,
                     strain: _sim.awaitingAnswer ? _sim.readPressure : 0,
                     fishScale: _f.shadowScale,
+                    plan: _plan,
                     hooked: _phase == _Phase.fighting,
                     reeling: _pumping,
                     bobber: _phase == _Phase.waiting || _phase == _Phase.bite,
