@@ -143,27 +143,27 @@ class FightScene extends CustomPainter {
     var x = size.width * (0.90 - 0.44 * near) + sway;
     var y = size.height * (0.80 - 0.28 * near) + math.sin(t * 2.1) * 7;
 
-    // Each move drags it off its resting track. `swell` is a rise-and-fall so
-    // a move begins and ends where the fish would otherwise have been, and the
-    // choreography cannot leave it stranded somewhere odd.
+    // Each move drags it off its resting track, and EVERY move is scaled by a
+    // rise-and-fall so it both begins and ends exactly where the fish would
+    // otherwise have been.
+    //
+    // This is not decoration. Displacing by the raw phase left `sound` and
+    // `bore` sitting at full offset on their final frame, so the instant the
+    // move ended the fish teleported back across the frame. Anything that does
+    // not return to zero under its own steam snaps.
     final k = actionPhase.clamp(0.0, 1.0);
     final swell = math.sin(k * math.pi);
     switch (action) {
       case Move.jump:
-        // Ballistic: out of the water and back into it. The vertical is an
-        // actual arc rather than a sine, because a fish coming down does not
-        // decelerate on the way in.
-        //
-        // The arc STARTS below the waterline and ends below it, so the jump has
-        // a visible exit and a visible entry. Launching it from the surface
-        // meant the fish was already clear of the water on the first frame and
-        // simply appeared in the air.
-        y = _jumpY(size, k);
+        // Ballistic: out of the water and back into it, blended by the same
+        // swell so launch and splashdown both meet the resting track.
+        y += (_jumpY(size, k) - y) * swell;
         x += swell * size.width * 0.06;
       case Move.sound:
-        // Straight down, hard, and it keeps going for most of the move.
-        y += k * size.height * 0.22;
-        x -= k * size.width * 0.03;
+        // Down hard, then levered back up — which is literally what answering
+        // it with side pressure does.
+        y += swell * size.height * 0.24;
+        x -= swell * size.width * 0.03;
       case Move.run:
         // Tears away across the frame — the one move that is mostly sideways.
         x += swell * size.width * 0.30;
@@ -175,8 +175,8 @@ class FightScene extends CustomPainter {
       case Move.bore:
         // Toward the structure, which lives on the left of every biome that
         // has any.
-        x -= k * size.width * 0.16;
-        y += k * size.height * 0.06;
+        x -= swell * size.width * 0.18;
+        y += swell * size.height * 0.07;
       case Move.work:
         break;
     }

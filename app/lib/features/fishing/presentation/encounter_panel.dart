@@ -84,11 +84,16 @@ class _EncounterPanelState extends State<EncounterPanel>
   double _moveAt = -9999;
   Move _sceneMove = Move.work;
 
+  /// How long a move takes to LOOK like it happened, which is not how long the
+  /// simulation spends on it. A jump is a jump whether you answered it in 200ms
+  /// or let the window run out — tying the arc to the sim meant a fast answer
+  /// cut the animation off part-way and the fish snapped back across the frame.
+  static const double _moveVisualMs = 950;
+
   /// 0..1 through whatever the fish is doing, for the scene to animate against.
   double get _actionPhase {
     if (_sceneMove == Move.work) return 0;
-    final span = widget.profile.readMs + widget.profile.holdMs;
-    return ((_elapsed - _moveAt) / span).clamp(0.0, 1.0);
+    return ((_elapsed - _moveAt) / _moveVisualMs).clamp(0.0, 1.0);
   }
 
   double _shakeMag = 0;
@@ -176,13 +181,17 @@ class _EncounterPanelState extends State<EncounterPanel>
     }
     if (!_sim.awaitingAnswer && wasMove == Move.work) _announced = null;
 
-    // The scene's move starts the instant the fish commits, and ends when the
-    // simulation drops back to working. Tracked here rather than derived, so a
-    // move that is answered early still plays its choreography out.
+    // The scene's move starts the instant the fish commits and then runs its
+    // own clock. A new hazard can interrupt it; the simulation finishing early
+    // cannot, because a half-played jump ending abruptly is precisely the
+    // teleport this is here to prevent.
     final live = !_sim.telling ? _sim.move : Move.work;
-    if (live != _sceneMove) {
+    if (live != Move.work && live != _sceneMove) {
       _sceneMove = live;
-      if (live != Move.work) _moveAt = _elapsed;
+      _moveAt = _elapsed;
+    } else if (_sceneMove != Move.work &&
+        _elapsed - _moveAt >= _moveVisualMs) {
+      _sceneMove = Move.work;
     }
 
     // Feedback on the answer itself, right or wrong. Nothing here touches what
