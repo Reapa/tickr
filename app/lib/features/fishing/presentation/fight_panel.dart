@@ -74,6 +74,8 @@ class _FightPanelState extends State<FightPanel>
   bool _holding = false;
   double _lastReelSfx = 0;
   bool _wasSurging = false;
+  bool _wasSnagging = false;
+  bool _wasDiving = false;
 
   /// Camera kick. Decays on its own; surges keep topping it up.
   double _shakeMag = 0;
@@ -101,10 +103,12 @@ class _FightPanelState extends State<FightPanel>
   double get _progress => _sim.progress;
 
   /// How far past the top of the band the line is, 0..1. Drives the colour
-  /// grade, the chop and the warning bloom.
-  double get _strain => _f.bandHigh >= 1
+  /// grade, the chop and the warning bloom. Measured against the sim's LIVE
+  /// ceiling, not the profile's, so a leader wearing through on ice makes the
+  /// water angry earlier as the fight goes on.
+  double get _strain => _sim.bandHigh >= 1
       ? 0
-      : ((_tension - _f.bandHigh) / (1 - _f.bandHigh)).clamp(0.0, 1.0);
+      : ((_tension - _sim.bandHigh) / (1 - _sim.bandHigh)).clamp(0.0, 1.0);
 
   /// A resolve sent sooner than this is rejected server-side as a forgery, so
   /// short losses (a missed hook) are held back to land on the normal path
@@ -179,6 +183,19 @@ class _FightPanelState extends State<FightPanel>
     }
     _wasSurging = _sim.surging;
 
+    // The two hazards ask for opposite things, so each needs its own
+    // unmistakable announcement or they are just random deaths.
+    if (_sim.snagging && !_wasSnagging) {
+      Sfx.nope();
+      _shakeMag += 4;
+    }
+    _wasSnagging = _sim.snagging;
+    if (_sim.diving && !_wasDiving) {
+      Sfx.drag();
+      _shakeMag += 5;
+    }
+    _wasDiving = _sim.diving;
+
     switch (_sim.end) {
       case FightEnd.snapped:
         _finish(false, 'The line snapped', 'you leaned on it too hard');
@@ -186,6 +203,9 @@ class _FightPanelState extends State<FightPanel>
         _finish(true, 'Landed!', 'bringing it aboard');
       case FightEnd.ranOut:
         _finish(false, 'It broke you off', 'it had more left than you did');
+      case FightEnd.snagged:
+        _finish(false, 'It reached the structure',
+            'slack line let it get where it wanted');
       case FightEnd.none:
         break;
     }
@@ -402,10 +422,30 @@ class _FightPanelState extends State<FightPanel>
           child: _TensionGauge(
             tension: _tension,
             bandLow: _f.bandLow,
-            bandHigh: _f.bandHigh,
+            bandHigh: _sim.bandHigh,
             strain: _strain,
           ),
         ),
+        // How close the fish is to reaching whatever it is heading for. Only
+        // on screen while that is actually a thing that is happening.
+        if (_sim.snagging || _sim.snagDanger > 0) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text('MAKING FOR STRUCTURE', style: _label(alpha: 0.85,
+                  color: AppTheme.gold)),
+              const Spacer(),
+              if (_tension < _f.bandLow)
+                Text('LINE IS SLACK', style: _label(alpha: 1, color: AppTheme.down)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _Meter(
+            value: _sim.snagDanger,
+            color: _sim.snagDanger > 0.6 ? AppTheme.down : AppTheme.gold,
+            height: 5,
+          ),
+        ],
       ],
     );
   }
@@ -494,11 +534,29 @@ class _FightPanelState extends State<FightPanel>
         // The hint gets out of the way once the fight is actually happening —
         // after that the rod and the water are the instruments.
         final fresh = _elapsed - _fightStart < 1600;
+        // Order matters: a snag is the only one of the three that kills you for
+        // doing the thing the other two want, so it has to win the screen.
+        if (_sim.snagging) {
+          return const _Prompt(
+            title: "IT'S GOING FOR THE STRUCTURE",
+            subtitle: 'KEEP THE LINE TIGHT — TURN ITS HEAD',
+            accent: AppTheme.gold,
+            big: true,
+          );
+        }
         if (_sim.surging) {
           return const _Prompt(
             title: "IT'S RUNNING",
             subtitle: 'EASE OFF — LET IT TAKE LINE',
             accent: AppTheme.down,
+            big: true,
+          );
+        }
+        if (_sim.diving) {
+          return const _Prompt(
+            title: "IT'S SOUNDING",
+            subtitle: 'WIND THROUGH IT OR LOSE THE GROUND',
+            accent: AppTheme.accent,
             big: true,
           );
         }

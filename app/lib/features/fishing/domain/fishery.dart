@@ -317,6 +317,12 @@ class FightProfile {
     required this.runMs,
     required this.shadow,
     required this.difficulty,
+    this.snags = 0,
+    this.snagMs = 0,
+    this.dives = 0,
+    this.diveMs = 0,
+    this.divePull = 0,
+    this.bandDecay = 0,
   });
 
   factory FightProfile.fromJson(Map<String, dynamic> json) => FightProfile(
@@ -337,6 +343,14 @@ class FightProfile {
         runMs: json['run_ms'] == null ? 900 : jsonInt(json['run_ms']),
         shadow: (json['shadow'] as String?) ?? 'small',
         difficulty: jsonDouble(json['difficulty']),
+        // All default to zero, so an encounter rolled by a server that predates
+        // per-spot mechanics plays exactly the fight it always did.
+        snags: jsonInt(json['snags']),
+        snagMs: jsonInt(json['snag_ms']),
+        dives: jsonInt(json['dives']),
+        diveMs: jsonInt(json['dive_ms']),
+        divePull: jsonDouble(json['dive_pull']),
+        bandDecay: jsonDouble(json['band_decay']),
       );
 
   final int biteMs;
@@ -363,6 +377,25 @@ class FightProfile {
   final int runMs;
   final String shadow;
   final double difficulty;
+
+  /// Structure windows. While one is open the fish is making for something it
+  /// can break you off on, and a SLACK line loses it — the opposite of what a
+  /// run asks for, which is the whole point of having both.
+  final int snags;
+  final int snagMs;
+
+  /// Sounding runs. Progress bleeds at [divePull] per second for [diveMs], and
+  /// unlike a run it adds no tension of its own, so you wind through it.
+  final int dives;
+  final int diveMs;
+  final double divePull;
+
+  /// How far the top of the safe band falls across a whole fight — a leader
+  /// wearing through on ice or coral.
+  final double bandDecay;
+
+  bool get hasSnags => snags > 0 && snagMs > 0;
+  bool get hasDives => dives > 0 && diveMs > 0;
 
   /// How big the shape under the boat looks. The only clue you get before the
   /// fish is actually in it.
