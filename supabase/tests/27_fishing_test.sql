@@ -138,7 +138,14 @@ select is(receipt ->> 'status', 'empty', 'selling an empty hold is a no-op')
 
 -- ---------------------------------------------------------------------------
 -- Bait gates active play — it is time-limited, never cash-limited.
+--
+-- Since migration 33 a cast happens inside a TRIP and returns a hooked fish
+-- rather than a landed one, so this section sails first. The trip machinery
+-- itself is covered in test 32; what is asserted here is only that bait is
+-- still the throttle it was designed to be.
 -- ---------------------------------------------------------------------------
+select start_trip('harbour');
+
 update public.user_fishery set bait = 0, bait_updated_at = now()
  where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 select is((select cast_line() ->> 'reason'), 'out of bait',
@@ -151,11 +158,13 @@ select is(game.refresh_bait('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 12,
   'bait regenerates on the clock: one every 5 minutes for an hour');
 
 insert into r values ('cast', cast_line());
-select is(receipt ->> 'status', 'caught', 'a cast with bait lands a fish')
+select is(receipt ->> 'status', 'hooked', 'a cast with bait hooks a fish')
   from r where label = 'cast';
 select is((select bait from user_fishery
             where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 11,
   'casting spends exactly one bait');
+
+select bank_haul();
 
 -- ---------------------------------------------------------------------------
 -- Gear is capital, bought one tier at a time.

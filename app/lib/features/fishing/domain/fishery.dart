@@ -78,6 +78,10 @@ class FishingGear {
     required this.holdCapacity,
     required this.rareBonus,
     required this.sortOrder,
+    required this.reqSpeciesLogged,
+    required this.reqLegendary,
+    required this.reqBestKg,
+    required this.reqLabel,
   });
 
   factory FishingGear.fromJson(Map<String, dynamic> json) => FishingGear(
@@ -91,6 +95,10 @@ class FishingGear {
         holdCapacity: jsonInt(json['hold_capacity']),
         rareBonus: jsonDouble(json['rare_bonus']),
         sortOrder: jsonInt(json['sort_order']),
+        reqSpeciesLogged: jsonInt(json['req_species_logged']),
+        reqLegendary: (json['req_legendary'] as bool?) ?? false,
+        reqBestKg: jsonDouble(json['req_best_kg']),
+        reqLabel: (json['req_label'] as String?) ?? '',
       );
 
   final String code;
@@ -104,13 +112,271 @@ class FishingGear {
   final double rareBonus;
   final int sortOrder;
 
+  /// The licence. Earned from the catch log, never bought — this is what stops
+  /// a rich trader clearing the whole ladder in one sitting.
+  final int reqSpeciesLogged;
+  final bool reqLegendary;
+  final double reqBestKg;
+  final String reqLabel;
+
   bool get isBoat => kind == 'boat';
+
+  bool get hasLicenceGate =>
+      reqSpeciesLogged > 0 || reqLegendary || reqBestKg > 0;
+
+  /// Whether the catch log has already earned this one.
+  bool licenceMet(Licence l) =>
+      l.speciesLogged >= reqSpeciesLogged &&
+      (!reqLegendary || l.hasLegendary) &&
+      l.bestKg >= reqBestKg;
+
+  /// How close the log is, 0..1 — so a locked upgrade shows a bar rather than
+  /// just a refusal.
+  double licenceProgress(Licence l) {
+    if (!hasLicenceGate) return 1;
+    if (reqSpeciesLogged > 0) {
+      return (l.speciesLogged / reqSpeciesLogged).clamp(0, 1).toDouble();
+    }
+    if (reqBestKg > 0) return (l.bestKg / reqBestKg).clamp(0, 1).toDouble();
+    return l.hasLegendary ? 1 : 0;
+  }
 
   /// Roughly how long this boat takes to fill its hold from empty — the number
   /// that actually tells a player when to come back.
   Duration get timeToFill => catchPerHour <= 0
       ? Duration.zero
       : Duration(minutes: (holdCapacity / catchPerHour * 60).round());
+}
+
+/// Somewhere to fish. A spot is its own species table, its own fight length and
+/// its own trip length, which is what makes choosing one a decision.
+class FishingSpot {
+  const FishingSpot({
+    required this.code,
+    required this.name,
+    required this.minBoatTier,
+    required this.tripCasts,
+    required this.fightScale,
+    required this.haulCap,
+    required this.blurb,
+    required this.sortOrder,
+  });
+
+  factory FishingSpot.fromJson(Map<String, dynamic> json) => FishingSpot(
+        code: json['code'] as String,
+        name: json['name'] as String,
+        minBoatTier: jsonInt(json['min_boat_tier']),
+        tripCasts: jsonInt(json['trip_casts']),
+        fightScale: jsonDouble(json['fight_scale']),
+        haulCap: jsonDouble(json['haul_cap']),
+        blurb: (json['blurb'] as String?) ?? '',
+        sortOrder: jsonInt(json['sort_order']),
+      );
+
+  final String code;
+  final String name;
+  final int minBoatTier;
+  final int tripCasts;
+  final double fightScale;
+  final double haulCap;
+  final String blurb;
+  final int sortOrder;
+}
+
+/// A consumable. Bought with cash and burned — the fishery's only real sink.
+class FishingSupply {
+  const FishingSupply({
+    required this.code,
+    required this.name,
+    required this.description,
+    required this.price,
+    required this.uses,
+    required this.sortOrder,
+  });
+
+  factory FishingSupply.fromJson(Map<String, dynamic> json) => FishingSupply(
+        code: json['code'] as String,
+        name: json['name'] as String,
+        description: json['description'] as String,
+        price: jsonDouble(json['price']),
+        uses: jsonInt(json['uses']),
+        sortOrder: jsonInt(json['sort_order']),
+      );
+
+  final String code;
+  final String name;
+  final String description;
+  final double price;
+  final int uses;
+  final int sortOrder;
+
+  IconData get icon => switch (code) {
+        'chum' => Icons.grain,
+        'live_bait' => Icons.bug_report,
+        _ => Icons.link,
+      };
+}
+
+/// What the catch log has earned you. Cash cannot buy any of it.
+class Licence {
+  const Licence({
+    required this.speciesLogged,
+    required this.hasLegendary,
+    required this.bestKg,
+  });
+
+  factory Licence.fromJson(Map<String, dynamic>? json) => Licence(
+        speciesLogged: jsonInt(json?['species_logged']),
+        hasLegendary: (json?['has_legendary'] as bool?) ?? false,
+        bestKg: jsonDouble(json?['best_kg']),
+      );
+
+  final int speciesLogged;
+  final bool hasLegendary;
+  final double bestKg;
+}
+
+/// A trip in progress: the live well, the casts left, and the haul bonus that
+/// grows with every fish you land and dies with the one you lose.
+class Trip {
+  const Trip({
+    required this.id,
+    required this.spotCode,
+    required this.spotName,
+    required this.castsUsed,
+    required this.tripCasts,
+    required this.landed,
+    required this.lost,
+    required this.streak,
+    required this.bestStreak,
+    required this.chumCasts,
+    required this.baitCasts,
+    required this.spareLines,
+    required this.haulBonus,
+    required this.wellCount,
+    required this.wellValue,
+  });
+
+  factory Trip.fromJson(Map<String, dynamic> json) => Trip(
+        id: json['id'] as String,
+        spotCode: json['spot_code'] as String,
+        spotName: (json['spot_name'] as String?) ?? '',
+        castsUsed: jsonInt(json['casts_used']),
+        tripCasts: jsonInt(json['trip_casts']),
+        landed: jsonInt(json['landed']),
+        lost: jsonInt(json['lost']),
+        streak: jsonInt(json['streak']),
+        bestStreak: jsonInt(json['best_streak']),
+        chumCasts: jsonInt(json['chum_casts']),
+        baitCasts: jsonInt(json['bait_casts']),
+        spareLines: jsonInt(json['spare_lines']),
+        haulBonus: jsonDouble(json['haul_bonus']),
+        wellCount: jsonInt(json['well_count']),
+        wellValue: jsonDouble(json['well_value']),
+      );
+
+  final String id;
+  final String spotCode;
+  final String spotName;
+  final int castsUsed;
+  final int tripCasts;
+  final int landed;
+  final int lost;
+  final int streak;
+  final int bestStreak;
+  final int chumCasts;
+  final int baitCasts;
+  final int spareLines;
+  final double haulBonus;
+  final int wellCount;
+  final double wellValue;
+
+  int get castsLeft => (tripCasts - castsUsed).clamp(0, tripCasts);
+  bool get isSpent => castsLeft <= 0;
+
+  /// What banking right now would actually pay, bonus included.
+  double get bankableValue => wellValue;
+}
+
+/// Every number the client needs to play out one fight. The server derives all
+/// of it from the fish, the rod and the spot; the client only animates it.
+class FightProfile {
+  const FightProfile({
+    required this.biteMs,
+    required this.hookWindowMs,
+    required this.staminaMs,
+    required this.strength,
+    required this.relaxRate,
+    required this.reelRate,
+    required this.slipRate,
+    required this.bandLow,
+    required this.bandHigh,
+    required this.overMult,
+    required this.surgeRate,
+    required this.runs,
+    required this.runMs,
+    required this.shadow,
+    required this.difficulty,
+  });
+
+  factory FightProfile.fromJson(Map<String, dynamic> json) => FightProfile(
+        biteMs: jsonInt(json['bite_ms']),
+        hookWindowMs: jsonInt(json['hook_window_ms']),
+        staminaMs: jsonInt(json['stamina_ms']),
+        strength: jsonDouble(json['strength']),
+        relaxRate: jsonDouble(json['relax_rate']),
+        reelRate: jsonDouble(json['reel_rate']),
+        slipRate: jsonDouble(json['slip_rate']),
+        bandLow: jsonDouble(json['band_low']),
+        bandHigh: jsonDouble(json['band_high']),
+        overMult: json['over_mult'] == null ? 1.8 : jsonDouble(json['over_mult']),
+        surgeRate: json['surge_rate'] == null
+            ? jsonDouble(json['relax_rate']) + 0.35 * jsonDouble(json['strength'])
+            : jsonDouble(json['surge_rate']),
+        runs: jsonInt(json['runs']),
+        runMs: json['run_ms'] == null ? 900 : jsonInt(json['run_ms']),
+        shadow: (json['shadow'] as String?) ?? 'small',
+        difficulty: jsonDouble(json['difficulty']),
+      );
+
+  final int biteMs;
+  final int hookWindowMs;
+  final int staminaMs;
+  final double strength;
+  final double relaxRate;
+  final double reelRate;
+  final double slipRate;
+  final double bandLow;
+  final double bandHigh;
+
+  /// How much faster the line loads once you push past [bandHigh]. This is what
+  /// stops "hold the button down" being a strategy.
+  final double overMult;
+
+  /// Tension added per second while the fish is running. Pitched just above
+  /// [relaxRate], so easing off slows a run without ever stopping it.
+  final double surgeRate;
+  final int runs;
+
+  /// How long one run lasts. Scaled to the fight, not a flat number of
+  /// seconds — see the migration note.
+  final int runMs;
+  final String shadow;
+  final double difficulty;
+
+  /// How big the shape under the boat looks. The only clue you get before the
+  /// fish is actually in it.
+  double get shadowScale => switch (shadow) {
+        'huge' => 1.0,
+        'big' => 0.62,
+        _ => 0.34,
+      };
+
+  String get shadowLabel => switch (shadow) {
+        'huge' => 'Something enormous',
+        'big' => 'Something big',
+        _ => 'Something small',
+      };
 }
 
 /// The player's fishery state, as returned by `get_my_fishery`.
@@ -133,6 +399,14 @@ class Fishery {
     required this.gearValue,
     required this.holdCount,
     required this.holdValue,
+    required this.stowedCount,
+    required this.tripsCompleted,
+    required this.bestHaul,
+    required this.lastSpotCode,
+    required this.licence,
+    required this.supplies,
+    required this.trip,
+    required this.hookup,
   });
 
   factory Fishery.fromJson(Map<String, dynamic> json) => Fishery(
@@ -155,6 +429,26 @@ class Fishery {
         gearValue: jsonDouble(json['gear_value']),
         holdCount: jsonInt(json['hold_count']),
         holdValue: jsonDouble(json['hold_value']),
+        stowedCount: jsonInt(json['stowed_count']),
+        tripsCompleted: jsonInt(json['trips_completed']),
+        bestHaul: jsonDouble(json['best_haul']),
+        lastSpotCode: json['last_spot_code'] as String?,
+        licence: Licence.fromJson(json['licence'] as Map<String, dynamic>?),
+        supplies: {
+          for (final e in ((json['supplies'] as Map<String, dynamic>?) ?? {})
+              .entries)
+            e.key: jsonInt(e.value),
+        },
+        trip: json['trip'] == null
+            ? null
+            : Trip.fromJson(json['trip'] as Map<String, dynamic>),
+        // A hook that survived a page refresh: the fight is resumable.
+        hookup: json['encounter'] == null
+            ? null
+            : Hookup.fromJson({
+                ...json['encounter'] as Map<String, dynamic>,
+                'status': 'hooked',
+              }),
       );
 
   final String boatCode;
@@ -175,18 +469,35 @@ class Fishery {
   final int holdCount;
   final double holdValue;
 
-  bool get holdIsFull => holdCount >= holdCapacity;
-  bool get hasBait => bait > 0;
-  bool get canCast => hasBait && !holdIsFull;
+  /// Everything physically aboard, well included — this is what the hold cap
+  /// actually measures, whereas [holdCount] is only what you may sell.
+  final int stowedCount;
+  final int tripsCompleted;
+  final double bestHaul;
+  final String? lastSpotCode;
+  final Licence licence;
+  final Map<String, int> supplies;
+  final Trip? trip;
+  final Hookup? hookup;
 
-  double get holdFraction =>
-      holdCapacity <= 0 ? 0 : (holdCount / holdCapacity).clamp(0, 1).toDouble();
+  bool get isOnTrip => trip != null;
+
+  /// Measured against everything aboard, not just the sellable part: a live
+  /// well still takes up room in the boat.
+  bool get holdIsFull => stowedCount >= holdCapacity;
+  bool get hasBait => bait > 0;
+  bool get canCast =>
+      hasBait && !holdIsFull && isOnTrip && !(trip?.isSpent ?? true);
+
+  double get holdFraction => holdCapacity <= 0
+      ? 0
+      : (stowedCount / holdCapacity).clamp(0, 1).toDouble();
 
   /// When the hold will be full at the current catch rate — the whole reason
   /// to come back later rather than sit and watch.
   Duration? get timeToFull {
     if (holdIsFull || catchPerHour <= 0) return null;
-    final remaining = holdCapacity - holdCount;
+    final remaining = holdCapacity - stowedCount;
     return Duration(minutes: (remaining / catchPerHour * 60).round());
   }
 }
@@ -219,9 +530,51 @@ class HoldItem {
   final DateTime caughtAt;
 }
 
-/// The result of one hand-cast.
-class CastResult {
-  const CastResult({
+/// The result of a cast: something is on the line, and this is everything you
+/// are told about it until you have it in the boat.
+class Hookup {
+  const Hookup({
+    required this.status,
+    this.reason,
+    this.encounterId,
+    this.fight,
+    this.bait = 0,
+    this.castsUsed = 0,
+    this.tripCasts = 0,
+    this.expiresAt,
+  });
+
+  factory Hookup.fromJson(Map<String, dynamic> json) => Hookup(
+        status: json['status'] as String,
+        reason: json['reason'] as String?,
+        encounterId: json['encounter_id'] as String?,
+        fight: json['fight'] == null
+            ? null
+            : FightProfile.fromJson(json['fight'] as Map<String, dynamic>),
+        bait: jsonInt(json['bait']),
+        castsUsed: jsonInt(json['casts_used']),
+        tripCasts: jsonInt(json['trip_casts']),
+        expiresAt: json['expires_at'] == null
+            ? null
+            : jsonDate(json['expires_at']),
+      );
+
+  final String status; // hooked | rejected
+  final String? reason;
+  final String? encounterId;
+  final FightProfile? fight;
+  final int bait;
+  final int castsUsed;
+  final int tripCasts;
+  final DateTime? expiresAt;
+
+  bool get isHooked => status == 'hooked' && fight != null;
+}
+
+/// How the fight ended. Landing is the first moment the species, the weight
+/// and the money are known — everything before this was a shadow.
+class LandResult {
+  const LandResult({
     required this.status,
     this.reason,
     this.speciesCode,
@@ -230,13 +583,16 @@ class CastResult {
     this.blurb = '',
     this.weightKg = 0,
     this.value = 0,
-    this.bait = 0,
-    this.hold = 0,
-    this.holdCapacity = 0,
+    this.perfect = false,
+    this.score = 0,
+    this.streak = 0,
+    this.haulBonus = 1,
     this.isPersonalBest = false,
+    this.saved = false,
+    this.spilled = false,
   });
 
-  factory CastResult.fromJson(Map<String, dynamic> json) => CastResult(
+  factory LandResult.fromJson(Map<String, dynamic> json) => LandResult(
         status: json['status'] as String,
         reason: json['reason'] as String?,
         speciesCode: json['species'] as String?,
@@ -245,13 +601,16 @@ class CastResult {
         blurb: (json['blurb'] as String?) ?? '',
         weightKg: jsonDouble(json['weight_kg']),
         value: jsonDouble(json['value']),
-        bait: jsonInt(json['bait']),
-        hold: jsonInt(json['hold']),
-        holdCapacity: jsonInt(json['hold_capacity']),
+        perfect: (json['perfect'] as bool?) ?? false,
+        score: jsonDouble(json['score']),
+        streak: jsonInt(json['streak']),
+        haulBonus: json['haul_bonus'] == null ? 1 : jsonDouble(json['haul_bonus']),
         isPersonalBest: (json['is_personal_best'] as bool?) ?? false,
+        saved: (json['saved'] as bool?) ?? false,
+        spilled: (json['spilled'] as bool?) ?? false,
       );
 
-  final String status; // caught | rejected
+  final String status; // landed | lost | rejected
   final String? reason;
   final String? speciesCode;
   final String? name;
@@ -259,12 +618,51 @@ class CastResult {
   final String blurb;
   final double weightKg;
   final double value;
-  final int bait;
-  final int hold;
-  final int holdCapacity;
+  final bool perfect;
+  final double score;
+  final int streak;
+  final double haulBonus;
   final bool isPersonalBest;
+  final bool saved;
+  final bool spilled;
 
-  bool get isCatch => status == 'caught';
+  bool get isCatch => status == 'landed';
+}
+
+/// The receipt for banking a trip.
+class HaulResult {
+  const HaulResult({
+    required this.status,
+    this.reason,
+    this.count = 0,
+    this.total = 0,
+    this.haulBonus = 1,
+    this.landed = 0,
+    this.lost = 0,
+    this.bestStreak = 0,
+  });
+
+  factory HaulResult.fromJson(Map<String, dynamic> json) => HaulResult(
+        status: json['status'] as String,
+        reason: json['reason'] as String?,
+        count: jsonInt(json['count']),
+        total: jsonDouble(json['total']),
+        haulBonus: json['haul_bonus'] == null ? 1 : jsonDouble(json['haul_bonus']),
+        landed: jsonInt(json['landed']),
+        lost: jsonInt(json['lost']),
+        bestStreak: jsonInt(json['best_streak']),
+      );
+
+  final String status; // banked | rejected
+  final String? reason;
+  final int count;
+  final double total;
+  final double haulBonus;
+  final int landed;
+  final int lost;
+  final int bestStreak;
+
+  bool get isBanked => status == 'banked';
 }
 
 /// The result of selling the hold.

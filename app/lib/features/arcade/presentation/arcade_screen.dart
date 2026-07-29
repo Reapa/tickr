@@ -40,21 +40,26 @@ class ArcadeScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           _GameCard(
             title: 'The Fishery',
-            tagline: 'Your boat fishes while you are away. Come back, sell the '
-                'catch, buy a bigger boat.',
+            tagline: 'Sail out and fight them in, or let the boat work while '
+                'you are away. Come back, sell the catch, buy a bigger boat.',
             icon: Icons.phishing,
             colors: const [Color(0xFF0E3A5C), Color(0xFF10788F)],
             // The status line is the hook: it says whether coming back is
-            // worth anything right now.
+            // worth anything right now. A trip left running outranks the hold,
+            // because that is the thing with a decision still open on it.
             status: fishery == null
                 ? null
-                : fishery.holdCount == 0
-                    ? 'Hold empty · ${fishery.boatName}'
-                    : fishery.holdIsFull
-                        ? 'HOLD FULL — ${Fmt.money(fishery.holdValue)} waiting'
-                        : '${fishery.holdCount}/${fishery.holdCapacity} aboard '
-                            '· ${Fmt.money(fishery.holdValue)}',
-            highlight: fishery?.holdIsFull ?? false,
+                : fishery.trip != null
+                    ? 'AT SEA — ${fishery.trip!.castsLeft} casts left · '
+                        '${Fmt.money(fishery.trip!.wellValue)} in the well'
+                    : fishery.holdCount == 0
+                        ? 'Hold empty · ${fishery.boatName}'
+                        : fishery.holdIsFull
+                            ? 'HOLD FULL — ${Fmt.money(fishery.holdValue)} waiting'
+                            : '${fishery.holdCount}/${fishery.holdCapacity} aboard '
+                                '· ${Fmt.money(fishery.holdValue)}',
+            highlight:
+                (fishery?.holdIsFull ?? false) || (fishery?.trip != null),
             // push, NOT go: `go` replaces the whole stack, which left the game
             // as the only route — no back entry, so the AppBar had no back
             // button and there was no way out of the Arcade.

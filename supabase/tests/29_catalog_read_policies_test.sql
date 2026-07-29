@@ -13,7 +13,7 @@ set search_path = public, extensions, game;
 
 select pg_advisory_xact_lock(hashtext('game.market_tick'));
 
-select plan(9);
+select plan(12);
 
 -- Structural: no public catalog may sit without RLS and a policy again.
 select is(
@@ -35,6 +35,16 @@ select isnt((select count(*)::int from fishing_gear), 0,
   'anon can read the fishing gear catalog');
 select isnt((select count(*)::int from slot_symbols), 0,
   'anon can read the slot payout table');
+
+-- The structural assertion above only proves RLS is ON. RLS on with no policy
+-- reads as zero rows, which is the actual production failure, so each new
+-- catalog needs a real read too.
+select isnt((select count(*)::int from fishing_spots), 0,
+  'anon can read the fishing spots catalog');
+select isnt((select count(*)::int from fishing_spot_species), 0,
+  'anon can read which fish live at which spot');
+select isnt((select count(*)::int from fishing_supplies), 0,
+  'anon can read the ships stores catalog');
 select isnt((select count(*)::int from company_industries), 0,
   'anon can read the company industries catalog');
 select isnt((select count(*)::int from property_types), 0,

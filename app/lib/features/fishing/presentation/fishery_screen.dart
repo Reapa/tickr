@@ -15,12 +15,17 @@ import '../../portfolio/data/portfolio_repository.dart';
 import '../../profile/data/profile_repository.dart';
 import '../data/fishing_repository.dart';
 import '../domain/fishery.dart';
+import 'fight_panel.dart';
 
-/// The Fishery — the idle mini-game.
+/// The Fishery.
 ///
-/// Two loops share one screen: the boat fills a capped hold while you're away
-/// (come back and sell), and casting by hand spends bait you can't buy (the
-/// thing to actually do while a market is closed).
+/// Two loops share one screen and they are deliberately different jobs:
+///
+///   IDLE   the boat fills a capped hold while you are away. Come back, sell.
+///   TRIP   the active game. Pick a spot, and every cast is a fight you can
+///          lose. Fish land in a live well that is not yours until you bank it,
+///          and the haul bonus grows with every fish you land in a row — so the
+///          real decision of the session is when to stop.
 class FisheryScreen extends ConsumerStatefulWidget {
   const FisheryScreen({super.key});
 
@@ -28,20 +33,15 @@ class FisheryScreen extends ConsumerStatefulWidget {
   ConsumerState<FisheryScreen> createState() => _FisheryScreenState();
 }
 
-class _FisheryScreenState extends ConsumerState<FisheryScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _rod = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 620),
-  );
-  CastResult? _lastCatch;
+class _FisheryScreenState extends ConsumerState<FisheryScreen> {
+  Hookup? _hookup;
+  LandResult? _lastResult;
   bool _busy = false;
 
-  @override
-  void dispose() {
-    _rod.dispose();
-    super.dispose();
-  }
+  /// Encounter ids already dealt with as abandoned. Without this a resolve that
+  /// fails (it was already gone, the network dropped) would be retried on every
+  /// rebuild, because the provider still reports the same open encounter.
+  final Set<String> _clearedHooks = <String>{};
 
   void _refresh() {
     ref.invalidate(fisheryProvider);
@@ -49,67 +49,170 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen>
     ref.invalidate(fishLogProvider);
   }
 
-  Future<void> _cast() async {
+  void _toast(String message, {Color? background, bool good = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: background ?? (good ? AppTheme.up : null),
+      content: Text(
+        message,
+        style: good
+            ? const TextStyle(
+                color: Colors.black, fontWeight: FontWeight.w700)
+            : null,
+      ),
+    ));
+  }
+
+  // --------------------------------------------------------------------------
+  // Trip
+  // --------------------------------------------------------------------------
+
+  Future<void> _startTrip(FishingSpot spot) async {
     if (_busy) return;
     setState(() => _busy = true);
-    // The browser only lets audio start from inside a user gesture.
+    Sfx.unlock();
+    try {
+      final result =
+          await ref.read(fishingRepositoryProvider).startTrip(spot.code);
+      if (result['status'] != 'started') {
+        Sfx.nope();
+        _toast('${result['reason'] ?? 'Cannot sail'}');
+      } else {
+        Sfx.cast();
+        setState(() => _lastResult = null);
+      }
+      _refresh();
+    } catch (error) {
+      _toast('$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _cast() async {
+    if (_busy || _hookup != null) return;
+    setState(() {
+      _busy = true;
+      _lastResult = null;
+    });
     Sfx.unlock();
     Sfx.cast();
-    _rod.forward(from: 0);
-
     try {
-      final result = await ref.read(fishingRepositoryProvider).cast();
+      final hookup = await ref.read(fishingRepositoryProvider).cast();
       if (!mounted) return;
-
-      if (!result.isCatch) {
+      if (!hookup.isHooked) {
         Sfx.nope();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.reason ?? 'Nothing biting.')),
-        );
+        _toast(hookup.reason ?? 'Nothing biting.');
         _refresh();
         return;
       }
+      setState(() => _hookup = hookup);
+    } catch (error) {
+      _toast('$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
-      // Let the line land before the fish appears — the tiny pause is what
-      // makes it read as a catch rather than a database write.
-      await Future<void>.delayed(const Duration(milliseconds: 380));
+  /// The fight is over; tell the server how it went and let it price it.
+  Future<void> _resolve(bool landed, double score) async {
+    final hookup = _hookup;
+    if (hookup?.encounterId == null) return;
+    try {
+      final result = await ref.read(fishingRepositoryProvider).resolve(
+            encounterId: hookup!.encounterId!,
+            landed: landed,
+            score: score,
+          );
       if (!mounted) return;
-      Sfx.splash();
-      await Future<void>.delayed(const Duration(milliseconds: 140));
-      if (!mounted) return;
+      setState(() {
+        _hookup = null;
+        _lastResult = result;
+      });
 
-      switch (result.rarity) {
-        case FishRarity.legendary:
-          Sfx.catchLegendary();
-        case FishRarity.epic:
-          Sfx.catchRare();
-        case FishRarity.rare:
-          Sfx.catchRare();
-        default:
-          Sfx.catchCommon();
-      }
-
-      setState(() => _lastCatch = result);
-      if (result.rarity.isSpecial && ref.read(feedbackEnabledProvider)) {
-        showCelebration(
-          context,
-          title: result.rarity == FishRarity.legendary
-              ? 'LEGENDARY CATCH!'
-              : 'What a catch!',
-          subtitle: '${result.name} · ${Fmt.weight(result.weightKg)}',
-          emoji: result.rarity == FishRarity.legendary ? '🏆' : '🎣',
-        );
-      }
-      if (result.rarity.isSpecial) {
-        // Epic and legendary catches drop a reward crate server-side.
-        ref.invalidate(unopenedCratesProvider);
+      if (result.isCatch) {
+        switch (result.rarity) {
+          case FishRarity.legendary:
+            Sfx.catchLegendary();
+          case FishRarity.epic:
+          case FishRarity.rare:
+            Sfx.catchRare();
+          default:
+            Sfx.catchCommon();
+        }
+        if (result.rarity.isSpecial && ref.read(feedbackEnabledProvider)) {
+          showCelebration(
+            context,
+            title: result.rarity == FishRarity.legendary
+                ? 'LEGENDARY CATCH!'
+                : 'What a catch!',
+            subtitle: '${result.name} · ${Fmt.weight(result.weightKg)}',
+            emoji: result.rarity == FishRarity.legendary ? '🏆' : '🎣',
+          );
+        }
+        if (result.rarity.isSpecial) ref.invalidate(unopenedCratesProvider);
+      } else if (result.saved) {
+        _toast('Your spare line held. The run survives.', good: true);
+      } else if (result.spilled) {
+        _toast(result.reason ?? 'It took a fish with it.');
       }
       _refresh();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+        setState(() => _hookup = null);
+        _toast('$error');
+        _refresh();
       }
+    }
+  }
+
+  /// A fight interrupted by a reload is a lost fish, resolved the moment the
+  /// screen comes back. Leaving it open would block casting until it timed out,
+  /// and — worse — would let a bad fight be retried by refreshing the page.
+  Future<void> _clearStaleHook(Hookup stale) async {
+    final id = stale.encounterId!;
+    if (!_clearedHooks.add(id)) return;
+    try {
+      await ref.read(fishingRepositoryProvider).resolve(
+            encounterId: id,
+            landed: false,
+            score: 0,
+          );
+      if (mounted) {
+        _toast('You left one on the line, and it got away.');
+        _refresh();
+      }
+    } catch (_) {
+      // Nothing to do: the server expires it on its own clock regardless.
+    }
+  }
+
+  Future<void> _bank() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    Sfx.unlock();
+    try {
+      final result = await ref.read(fishingRepositoryProvider).bankHaul();
+      if (!mounted) return;
+      if (!result.isBanked) {
+        Sfx.nope();
+        _toast(result.reason ?? 'Nothing to bank.');
+        return;
+      }
+      Sfx.reel();
+      setState(() => _lastResult = null);
+      _refresh();
+      if (result.count == 0) {
+        _toast('Back at the dock with nothing. It happens.');
+      } else {
+        _toast(
+          'Haul stowed: ${result.count} fish, ${Fmt.money(result.total)}'
+          '${result.haulBonus > 1 ? ' (×${result.haulBonus.toStringAsFixed(2)} bonus)' : ''}',
+          good: true,
+        );
+      }
+    } catch (error) {
+      _toast('$error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -124,35 +227,44 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen>
       if (!mounted) return;
       if (!result.isSold) {
         Sfx.nope();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nothing in the hold yet.')),
-        );
+        _toast('Nothing in the hold yet.');
         return;
       }
       Sfx.reel();
       await Future<void>.delayed(const Duration(milliseconds: 220));
       if (!mounted) return;
       Sfx.cash();
-      setState(() => _lastCatch = null);
       _refresh();
       ref.invalidate(myProfileProvider);
       ref.invalidate(recentOrdersProvider);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        backgroundColor: AppTheme.up,
-        content: Text(
-          'Sold ${result.count} fish for ${Fmt.money(result.total)}'
-          '${result.bestName != null ? ' — best: ${result.bestName} '
-              '(${Fmt.weight(result.bestKg)})' : ''}',
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
-        ),
-      ));
+      _toast(
+        'Sold ${result.count} fish for ${Fmt.money(result.total)}'
+        '${result.bestName != null ? ' — best: ${result.bestName} '
+            '(${Fmt.weight(result.bestKg)})' : ''}',
+        good: true,
+      );
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
-      }
+      _toast('$error');
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _useSupply(FishingSupply supply) async {
+    try {
+      final result =
+          await ref.read(fishingRepositoryProvider).useSupply(supply.code);
+      if (!mounted) return;
+      if (result['status'] == 'used') {
+        Sfx.tick();
+        _toast('${supply.name} aboard.', good: true);
+      } else {
+        Sfx.nope();
+        _toast('${result['reason'] ?? 'Cannot use that'}');
+      }
+      _refresh();
+    } catch (error) {
+      _toast('$error');
     }
   }
 
@@ -186,28 +298,107 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen>
                 textAlign: TextAlign.center),
           ),
         ),
-        data: (fishery) => RefreshIndicator(
-          onRefresh: () async => _refresh(),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        data: (fishery) {
+          // A hook the server still has open but this screen knows nothing
+          // about can only be a reload mid-fight.
+          final stale = fishery.hookup;
+          if (_hookup == null && stale?.encounterId != null) {
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => _clearStaleHook(stale!));
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async => _refresh(),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [
+                if (_hookup?.fight != null)
+                  FightPanel(
+                    key: ValueKey(_hookup!.encounterId),
+                    fight: _hookup!.fight!,
+                    onFinished: _resolve,
+                  )
+                else if (fishery.isOnTrip)
+                  _DeckPanel(fishery: fishery, result: _lastResult)
+                else
+                  _HarbourPanel(fishery: fishery),
+                const SizedBox(height: 16),
+                if (fishery.isOnTrip) ...[
+                  _TripCard(
+                    fishery: fishery,
+                    busy: _busy,
+                    fighting: _hookup != null,
+                    onCast: _cast,
+                    onBank: _bank,
+                    onUseSupply: _useSupply,
+                  ),
+                  const SizedBox(height: 16),
+                ] else ...[
+                  _SpotPicker(
+                    fishery: fishery,
+                    busy: _busy,
+                    onPick: _startTrip,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                _HoldCard(fishery: fishery, busy: _busy, onSell: _sell),
+                const SizedBox(height: 16),
+                _StoresCard(fishery: fishery, onBought: _refresh),
+                const SizedBox(height: 16),
+                _GearCard(fishery: fishery, onBought: _refresh),
+                const SizedBox(height: 16),
+                _LifetimeCard(fishery: fishery),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Scenes
+// ---------------------------------------------------------------------------
+
+/// Tied up at the dock: the idle boat, and whatever it has been doing without
+/// you. This is the "come back later" half of the game.
+class _HarbourPanel extends StatelessWidget {
+  const _HarbourPanel({required this.fishery});
+
+  final Fishery fishery;
+
+  @override
+  Widget build(BuildContext context) {
+    return _WaterFrame(
+      height: 180,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _WaterPanel(
-                fishery: fishery,
-                rod: _rod,
-                lastCatch: _lastCatch,
+              Text(
+                fishery.boatName.toUpperCase(),
+                style: TextStyle(
+                  letterSpacing: 2,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white.withValues(alpha: 0.45),
+                ),
               ),
-              const SizedBox(height: 16),
-              _CastBar(
-                fishery: fishery,
-                busy: _busy,
-                onCast: _cast,
+              const SizedBox(height: 10),
+              Text(
+                fishery.holdIsFull
+                    ? 'The hold is full. Sell the catch to make room.'
+                    : 'Moored up. Your boat fishes on its own while you are '
+                        'away — or pick a spot and go out.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  height: 1.5,
+                ),
               ),
-              const SizedBox(height: 16),
-              _HoldCard(fishery: fishery, busy: _busy, onSell: _sell),
-              const SizedBox(height: 16),
-              _GearCard(fishery: fishery, onBought: _refresh),
-              const SizedBox(height: 16),
-              _LifetimeCard(fishery: fishery),
             ],
           ),
         ),
@@ -216,23 +407,73 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen>
   }
 }
 
-/// The scene: water, a boat, and the last thing you pulled out of it.
-class _WaterPanel extends StatelessWidget {
-  const _WaterPanel({
-    required this.fishery,
-    required this.rod,
-    required this.lastCatch,
-  });
+/// Out on the water between casts, showing the last fish you landed.
+class _DeckPanel extends StatelessWidget {
+  const _DeckPanel({required this.fishery, required this.result});
 
   final Fishery fishery;
-  final AnimationController rod;
-  final CastResult? lastCatch;
+  final LandResult? result;
 
   @override
   Widget build(BuildContext context) {
-    final result = lastCatch;
-    return Container(
+    final trip = fishery.trip!;
+    final r = result;
+    return _WaterFrame(
       height: 210,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 14,
+            child: Text(
+              trip.spotName.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                letterSpacing: 2,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Center(
+              child: r == null
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      child: Text(
+                        trip.isSpent
+                            ? 'That is the whole trip. Bank the haul.'
+                            : 'Lines in the water. Cast when you are ready.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          height: 1.5,
+                        ),
+                      ),
+                    )
+                  : r.isCatch
+                      ? _CatchCard(result: r)
+                      : _LossCard(result: r),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaterFrame extends StatelessWidget {
+  const _WaterFrame({required this.height, required this.child});
+
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
@@ -244,65 +485,15 @@ class _WaterPanel extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: rod,
-              builder: (context, _) =>
-                  CustomPaint(painter: _WaterPainter(rod.value)),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 14,
-            child: Text(
-              fishery.boatName.toUpperCase(),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                letterSpacing: 2,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: Colors.white.withValues(alpha: 0.45),
-              ),
-            ),
-          ),
-          if (result != null)
-            Positioned.fill(
-              child: Center(
-                child: _CatchCard(result: result),
-              ),
-            )
-          else
-            Positioned.fill(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    fishery.holdIsFull
-                        ? 'The hold is full. Sell the catch to make room.'
-                        : 'Your ${fishery.boatName.toLowerCase()} is fishing.\n'
-                            'Cast a line, or come back later.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          Positioned.fill(child: CustomPaint(painter: _WaterPainter())),
+          child,
         ],
       ),
     );
   }
 }
 
-/// Gentle parallax swells, disturbed briefly when a line goes out.
 class _WaterPainter extends CustomPainter {
-  _WaterPainter(this.cast);
-
-  final double cast;
-
   @override
   void paint(Canvas canvas, Size size) {
     for (var layer = 0; layer < 3; layer++) {
@@ -310,101 +501,203 @@ class _WaterPainter extends CustomPainter {
         ..color = Colors.white.withValues(alpha: 0.05 + layer * 0.03)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2;
-      final path = Path();
       final baseY = size.height * (0.55 + layer * 0.13);
-      // A ripple that swells while the cast animation plays, then settles.
-      final amplitude = 4.0 + layer * 2 + math.sin(cast * math.pi) * 7;
-      path.moveTo(0, baseY);
+      final amplitude = 4.0 + layer * 2;
+      final path = Path()..moveTo(0, baseY);
       for (double x = 0; x <= size.width; x += 6) {
-        final y = baseY +
-            math.sin((x / size.width * 4 * math.pi) + layer * 1.3 + cast * 6) *
-                amplitude;
-        path.lineTo(x, y);
+        path.lineTo(
+          x,
+          baseY +
+              math.sin((x / size.width * 4 * math.pi) + layer * 1.3) * amplitude,
+        );
       }
       canvas.drawPath(path, paint);
     }
   }
 
   @override
-  bool shouldRepaint(_WaterPainter old) => old.cast != cast;
+  bool shouldRepaint(_WaterPainter old) => false;
 }
 
-/// The reveal: what you just landed, coloured by rarity.
+/// The reveal. Everything on this card was decided by the server at cast time;
+/// the fight only decided whether you got to see it.
 class _CatchCard extends StatelessWidget {
   const _CatchCard({required this.result});
 
-  final CastResult result;
+  final LandResult result;
 
   @override
   Widget build(BuildContext context) {
     final color = result.rarity.color;
-    return AnimatedScale(
-      scale: 1,
-      duration: const Duration(milliseconds: 220),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.8), width: 1.5),
-          boxShadow: result.rarity.isSpecial
-              ? [BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 24)]
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              result.rarity.label.toUpperCase(),
-              style: TextStyle(
-                color: color,
-                fontSize: 10,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w900,
-              ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.8), width: 1.5),
+        boxShadow: result.rarity.isSpecial
+            ? [BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 24)]
+            : null,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            result.rarity.label.toUpperCase(),
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w900,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            result.name ?? 'Catch',
+            style: const TextStyle(
+                color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${Fmt.weight(result.weightKg)} · ${Fmt.money(result.value)}',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            alignment: WrapAlignment.center,
+            children: [
+              if (result.perfect)
+                const _Chip(label: 'CLEAN FIGHT +25%', color: AppTheme.up),
+              if (result.isPersonalBest)
+                const _Chip(label: 'PERSONAL BEST', color: AppTheme.gold),
+              if (result.streak >= 2)
+                _Chip(label: '${result.streak} IN A ROW', color: color),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LossCard extends StatelessWidget {
+  const _LossCard({required this.result});
+
+  final LandResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = result.saved ? AppTheme.gold : AppTheme.down;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.7), width: 1.5),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(result.saved ? 'SAVED' : 'IT GOT AWAY',
+              style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  letterSpacing: 2,
+                  fontWeight: FontWeight.w900)),
+          const SizedBox(height: 6),
+          Text(
+            result.reason ?? 'The line went slack.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: color,
+                fontSize: 9,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w900)),
+      );
+}
+
+// ---------------------------------------------------------------------------
+// Choosing where to fish
+// ---------------------------------------------------------------------------
+
+/// The spot list. Locked water stays visible with the boat it wants, because a
+/// ladder you cannot see is not a ladder.
+class _SpotPicker extends ConsumerWidget {
+  const _SpotPicker({
+    required this.fishery,
+    required this.busy,
+    required this.onPick,
+  });
+
+  final Fishery fishery;
+  final bool busy;
+  final void Function(FishingSpot) onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final spots = ref.watch(fishingSpotsProvider).value ?? const <FishingSpot>[];
+    if (spots.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Where to?', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
-              result.name ?? 'Catch',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800),
+              'A trip is a fixed run of casts. Land fish in a row to build the '
+              'haul bonus, and bank it before you lose one.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: 2),
-            Text(
-              '${Fmt.weight(result.weightKg)} · ${Fmt.money(result.value)}',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
-            ),
-            if (result.isPersonalBest) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppTheme.gold.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text('PERSONAL BEST',
-                    style: TextStyle(
-                        color: AppTheme.gold,
-                        fontSize: 9,
-                        letterSpacing: 1.2,
-                        fontWeight: FontWeight.w900)),
-              ),
-            ],
-            if (result.blurb.isNotEmpty) ...[
-              const SizedBox(height: 8),
+            if (fishery.holdIsFull) ...[
+              const SizedBox(height: 10),
               Text(
-                result.blurb,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.55),
-                    fontSize: 11,
-                    fontStyle: FontStyle.italic),
+                'The hold is full — sell your catch before sailing.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppTheme.gold),
               ),
             ],
+            const SizedBox(height: 12),
+            for (final spot in spots)
+              _SpotRow(
+                spot: spot,
+                unlocked: fishery.boatTier >= spot.minBoatTier,
+                last: fishery.lastSpotCode == spot.code,
+                onTap: busy ||
+                        fishery.boatTier < spot.minBoatTier ||
+                        fishery.holdIsFull
+                    ? null
+                    : () => onPick(spot),
+              ),
           ],
         ),
       ),
@@ -412,77 +705,305 @@ class _CatchCard extends StatelessWidget {
   }
 }
 
-/// Cast button plus the bait budget that gates it.
-class _CastBar extends StatelessWidget {
-  const _CastBar({
-    required this.fishery,
-    required this.busy,
-    required this.onCast,
+class _SpotRow extends StatelessWidget {
+  const _SpotRow({
+    required this.spot,
+    required this.unlocked,
+    required this.last,
+    required this.onTap,
   });
 
-  final Fishery fishery;
-  final bool busy;
-  final VoidCallback onCast;
+  final FishingSpot spot;
+  final bool unlocked;
+  final bool last;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final next = fishery.nextBaitAt;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FilledButton.icon(
-          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-          onPressed: busy || !fishery.canCast ? null : onCast,
-          icon: busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.phishing),
-          label: Text(
-            fishery.holdIsFull
-                ? 'Hold full — sell your catch'
-                : !fishery.hasBait
-                    ? 'Out of bait'
-                    : 'Cast a line  ·  1 bait',
-            style: const TextStyle(fontWeight: FontWeight.w700),
+    return Opacity(
+      opacity: unlocked ? 1 : 0.45,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Material(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(unlocked ? Icons.sailing : Icons.lock_outline, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(spot.name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800)),
+                            if (last) ...[
+                              const SizedBox(width: 6),
+                              Text('last trip',
+                                  style: Theme.of(context).textTheme.bodySmall),
+                            ],
+                          ],
+                        ),
+                        Text(spot.blurb,
+                            style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(height: 2),
+                        Text(
+                          unlocked
+                              ? '${spot.tripCasts} casts · up to '
+                                  '×${spot.haulCap.toStringAsFixed(1)} haul bonus'
+                              : 'Needs a tier-${spot.minBoatTier} boat',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                  color: unlocked ? AppTheme.up : AppTheme.gold,
+                                  fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (onTap != null) const Icon(Icons.chevron_right, size: 20),
+                ],
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(Icons.bug_report_outlined,
-                size: 16, color: Theme.of(context).colorScheme.outline),
-            const SizedBox(width: 6),
-            Text('Bait ${fishery.bait}/${fishery.baitCap}',
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-            const Spacer(),
-            if (next != null)
-              Countdown(
-                target: next,
-                builder: (remaining) => Text(
-                  'next in ${Fmt.countdown(remaining)}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              )
-            else
-              Text('Full', style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: fishery.baitCap == 0 ? 0 : fishery.bait / fishery.baitCap,
-            minHeight: 5,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
-/// The hold: how full it is, what it's worth, and the sell button.
+// ---------------------------------------------------------------------------
+// The trip itself
+// ---------------------------------------------------------------------------
+
+/// Everything the decision needs in one card: what is in the well, what the
+/// bonus is worth right now, and how many casts are left to risk it on.
+class _TripCard extends ConsumerWidget {
+  const _TripCard({
+    required this.fishery,
+    required this.busy,
+    required this.fighting,
+    required this.onCast,
+    required this.onBank,
+    required this.onUseSupply,
+  });
+
+  final Fishery fishery;
+  final bool busy;
+  final bool fighting;
+  final VoidCallback onCast;
+  final VoidCallback onBank;
+  final void Function(FishingSupply) onUseSupply;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trip = fishery.trip!;
+    final supplies =
+        ref.watch(fishingSuppliesProvider).value ?? const <FishingSupply>[];
+    final next = fishery.nextBaitAt;
+    final bonus = trip.haulBonus;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Text(trip.spotName,
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                Text('${trip.castsLeft} casts left',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _TripStat(
+                    label: 'In the well',
+                    value: '${trip.wellCount}',
+                    sub: Fmt.money(trip.wellValue),
+                  ),
+                ),
+                Expanded(
+                  child: _TripStat(
+                    label: 'Haul bonus',
+                    value: '×${bonus.toStringAsFixed(2)}',
+                    sub: trip.streak > 0
+                        ? '${trip.streak} in a row'
+                        : 'land fish to build it',
+                    highlight: bonus > 1,
+                  ),
+                ),
+                Expanded(
+                  child: _TripStat(
+                    label: 'Lost',
+                    value: '${trip.lost}',
+                    sub: trip.spareLines > 0
+                        ? '${trip.spareLines} spare line'
+                        : 'no spare line',
+                  ),
+                ),
+              ],
+            ),
+            if (trip.chumCasts > 0 || trip.baitCasts > 0) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                children: [
+                  if (trip.chumCasts > 0)
+                    _Chip(
+                        label: 'CHUM · ${trip.chumCasts} CASTS',
+                        color: AppTheme.up),
+                  if (trip.baitCasts > 0)
+                    _Chip(
+                        label: 'LIVE BAIT · ${trip.baitCasts} CASTS',
+                        color: AppTheme.gold),
+                ],
+              ),
+            ],
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              style:
+                  FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+              onPressed: busy || fighting || !fishery.canCast ? null : onCast,
+              icon: const Icon(Icons.phishing),
+              label: Text(
+                trip.isSpent
+                    ? 'Trip over — bank the haul'
+                    : fishery.holdIsFull
+                        ? 'Hold full'
+                        : !fishery.hasBait
+                            ? 'Out of bait'
+                            : 'Cast a line  ·  1 bait',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.bug_report_outlined,
+                    size: 16, color: Theme.of(context).colorScheme.outline),
+                const SizedBox(width: 6),
+                Text('Bait ${fishery.bait}/${fishery.baitCap}',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                const Spacer(),
+                if (next != null)
+                  Countdown(
+                    target: next,
+                    builder: (remaining) => Text(
+                      'next in ${Fmt.countdown(remaining)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  )
+                else
+                  Text('Full', style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: fishery.baitCap == 0 ? 0 : fishery.bait / fishery.baitCap,
+                minHeight: 5,
+              ),
+            ),
+            // Supplies are committed mid-trip, before you know what is down
+            // there — which is what makes carrying them a decision.
+            if (fishery.supplies.values.any((q) => q > 0)) ...[
+              const SizedBox(height: 14),
+              Text('Load from stores',
+                  style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in supplies)
+                    if ((fishery.supplies[s.code] ?? 0) > 0)
+                      ActionChip(
+                        avatar: Icon(s.icon, size: 16),
+                        label:
+                            Text('${s.name}  ×${fishery.supplies[s.code]}'),
+                        onPressed: fighting ? null : () => onUseSupply(s),
+                      ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: trip.wellCount > 0 ? AppTheme.up : null,
+              ),
+              onPressed: busy || fighting ? null : onBank,
+              icon: const Icon(Icons.anchor),
+              label: Text(
+                trip.wellCount == 0
+                    ? 'Head back empty-handed'
+                    : 'Bank the haul  ·  ${Fmt.money(trip.wellValue * bonus)}',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Nothing in the well is yours until you bank it. Lose a fight and '
+              'the bonus resets and the smallest fish goes over the side.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TripStat extends StatelessWidget {
+  const _TripStat({
+    required this.label,
+    required this.value,
+    required this.sub,
+    this.highlight = false,
+  });
+
+  final String label;
+  final String value;
+  final String sub;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: highlight ? AppTheme.up : null)),
+          Text(sub,
+              style: Theme.of(context).textTheme.bodySmall,
+              overflow: TextOverflow.ellipsis),
+        ],
+      );
+}
+
+// ---------------------------------------------------------------------------
+// Hold, stores, gear
+// ---------------------------------------------------------------------------
+
 class _HoldCard extends ConsumerWidget {
   const _HoldCard({
     required this.fishery,
@@ -511,7 +1032,7 @@ class _HoldCard extends ConsumerWidget {
               children: [
                 Text('Hold', style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
-                Text('${fishery.holdCount} / ${fishery.holdCapacity}',
+                Text('${fishery.stowedCount} / ${fishery.holdCapacity}',
                     style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: full ? AppTheme.gold : null)),
@@ -536,10 +1057,20 @@ class _HoldCard extends ConsumerWidget {
                           '${fishery.catchPerHour.toStringAsFixed(0)} fish/hour.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (fishery.isOnTrip && (fishery.trip?.wellCount ?? 0) > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '${fishery.trip!.wellCount} more in the live well, not '
+                  'sellable until the trip is banked.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppTheme.gold),
+                ),
+              ),
             if (hold.isNotEmpty) ...[
               const SizedBox(height: 12),
-              // The five best fish aboard: the reason to feel good about a
-              // week away, without listing three hundred sardines.
               for (final item in (hold.toList()
                     ..sort((a, b) => b.value.compareTo(a.value)))
                   .take(5))
@@ -602,7 +1133,106 @@ class _HoldCard extends ConsumerWidget {
   }
 }
 
-/// Boat and rod upgrades.
+/// The ship's stores. Unlike gear, this money is burned — which is exactly why
+/// it is here: a fully-upgraded fishery still needs somewhere to spend.
+class _StoresCard extends ConsumerWidget {
+  const _StoresCard({required this.fishery, required this.onBought});
+
+  final Fishery fishery;
+  final VoidCallback onBought;
+
+  Future<void> _buy(
+      BuildContext context, WidgetRef ref, FishingSupply supply) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result =
+          await ref.read(fishingRepositoryProvider).buySupply(supply.code);
+      if (result['status'] == 'bought') {
+        Sfx.purchase();
+        ref.invalidate(myProfileProvider);
+        onBought();
+        messenger.showSnackBar(SnackBar(
+          backgroundColor: AppTheme.up,
+          content: Text('${supply.name} stowed.',
+              style: const TextStyle(
+                  color: Colors.black, fontWeight: FontWeight.w700)),
+        ));
+      } else {
+        Sfx.nope();
+        messenger.showSnackBar(
+            SnackBar(content: Text('${result['reason'] ?? 'Not available'}')));
+      }
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final supplies =
+        ref.watch(fishingSuppliesProvider).value ?? const <FishingSupply>[];
+    if (supplies.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Ship's stores",
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Consumables, carried onto a trip and burned. This spend does not '
+              'come back as equity the way a boat does.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            for (final s in supplies)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(s.icon, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(s.name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              if ((fishery.supplies[s.code] ?? 0) > 0) ...[
+                                const SizedBox(width: 6),
+                                Text('×${fishery.supplies[s.code]}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: AppTheme.up)),
+                              ],
+                            ],
+                          ),
+                          Text(s.description,
+                              style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.tonal(
+                      onPressed: () => _buy(context, ref, s),
+                      child: Text(Fmt.moneyCompact(s.price)),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _GearCard extends ConsumerWidget {
   const _GearCard({required this.fishery, required this.onBought});
 
@@ -640,7 +1270,6 @@ class _GearCard extends ConsumerWidget {
     final gear = ref.watch(fishingGearProvider).value ?? const <FishingGear>[];
     if (gear.isEmpty) return const SizedBox.shrink();
 
-    // Only ever the next rung of each ladder: an upgrade path, not a shop wall.
     final nextBoat = gear
         .where((g) => g.isBoat && g.tier == fishery.boatTier + 1)
         .firstOrNull;
@@ -657,7 +1286,8 @@ class _GearCard extends ConsumerWidget {
             const SizedBox(height: 4),
             Text(
               'Boats and rods are capital: what you spend moves into your '
-              'business net worth, the same as a property.',
+              'business net worth, the same as a property. The top tiers also '
+              'need a licence, which only the catch log can earn.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
@@ -667,18 +1297,18 @@ class _GearCard extends ConsumerWidget {
               detail: '${fishery.catchPerHour.toStringAsFixed(0)} fish/hr · '
                   'hold ${fishery.holdCapacity}',
               next: nextBoat,
-              onBuy: nextBoat == null
-                  ? null
-                  : () => _buy(context, ref, nextBoat),
+              licence: fishery.licence,
+              onBuy:
+                  nextBoat == null ? null : () => _buy(context, ref, nextBoat),
             ),
             const Divider(height: 24),
             _GearRow(
               label: 'Rod',
               owned: fishery.rodName,
-              detail: 'Better rods find rarer fish',
+              detail: 'Better rods find rarer fish — and tame bigger ones',
               next: nextRod,
-              onBuy:
-                  nextRod == null ? null : () => _buy(context, ref, nextRod),
+              licence: fishery.licence,
+              onBuy: nextRod == null ? null : () => _buy(context, ref, nextRod),
             ),
           ],
         ),
@@ -693,6 +1323,7 @@ class _GearRow extends StatelessWidget {
     required this.owned,
     required this.detail,
     required this.next,
+    required this.licence,
     required this.onBuy,
   });
 
@@ -700,18 +1331,20 @@ class _GearRow extends StatelessWidget {
   final String owned;
   final String detail;
   final FishingGear? next;
+  final Licence licence;
   final VoidCallback? onBuy;
 
   @override
   Widget build(BuildContext context) {
     final upgrade = next;
+    final locked = upgrade != null && !upgrade.licenceMet(licence);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Text('$label: ',
-                style: Theme.of(context).textTheme.bodySmall),
+            Text('$label: ', style: Theme.of(context).textTheme.bodySmall),
             Expanded(
               child: Text(owned,
                   style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -727,33 +1360,70 @@ class _GearRow extends StatelessWidget {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(upgrade.name,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700)),
+                          Text(upgrade.description,
+                              style: Theme.of(context).textTheme.bodySmall),
+                          if (upgrade.isBoat)
+                            Text(
+                              '${upgrade.catchPerHour.toStringAsFixed(0)} fish/hr · '
+                              'hold ${upgrade.holdCapacity}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            )
+                          else
+                            Text('${upgrade.rareBonus}× rare-fish chance',
+                                style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.tonal(
+                      onPressed: locked ? null : onBuy,
+                      child: Text(Fmt.moneyCompact(upgrade.price)),
+                    ),
+                  ],
+                ),
+                // A locked rung shows the licence and how far off it is, so the
+                // ladder reads as a goal rather than a refusal.
+                if (upgrade.hasLicenceGate) ...[
+                  const SizedBox(height: 10),
+                  Row(
                     children: [
-                      Text(upgrade.name,
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text(upgrade.description,
-                          style: Theme.of(context).textTheme.bodySmall),
-                      if (upgrade.isBoat)
-                        Text(
-                          '${upgrade.catchPerHour.toStringAsFixed(0)} fish/hr · '
-                          'hold ${upgrade.holdCapacity}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        )
-                      else
-                        Text('${upgrade.rareBonus}× rare-fish chance',
-                            style: Theme.of(context).textTheme.bodySmall),
+                      Icon(locked ? Icons.lock_outline : Icons.verified_outlined,
+                          size: 14,
+                          color: locked ? AppTheme.gold : AppTheme.up),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${upgrade.reqLabel}${locked ? '' : ' — earned'}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: locked ? AppTheme.gold : AppTheme.up,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.tonal(
-                  onPressed: onBuy,
-                  child: Text(Fmt.moneyCompact(upgrade.price)),
-                ),
+                  if (locked) ...[
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: upgrade.licenceProgress(licence),
+                        minHeight: 4,
+                        color: AppTheme.gold,
+                      ),
+                    ),
+                  ],
+                ],
               ],
             ),
           ),
@@ -784,9 +1454,10 @@ class _LifetimeCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _Stat(label: 'Fish landed', value: '${fishery.lifetimeCatches}'),
+            _Stat(label: 'Trips', value: '${fishery.tripsCompleted}'),
             _Stat(
-                label: 'Lifetime earned',
-                value: Fmt.moneyCompact(fishery.lifetimeValue)),
+                label: 'Best haul',
+                value: Fmt.moneyCompact(fishery.bestHaul)),
             _Stat(
                 label: 'Gear value',
                 value: Fmt.moneyCompact(fishery.gearValue)),
@@ -807,15 +1478,16 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           Text(value,
-              style: const TextStyle(
-                  fontSize: 17, fontWeight: FontWeight.w800)),
+              style:
+                  const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
       );
 }
 
-/// The permanent record — every species, whether you've landed one, and your
-/// personal best. The completionist's reason to keep upgrading the boat.
+/// The permanent record — every species, whether you have landed one, and your
+/// personal best. Now also the licence board: these rows are what unlock the
+/// top of the gear ladder.
 class _CatchLogSheet extends ConsumerWidget {
   const _CatchLogSheet();
 
@@ -841,9 +1513,14 @@ class _CatchLogSheet extends ConsumerWidget {
                   style: const TextStyle(fontWeight: FontWeight.w800)),
             ],
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Species logged here are what earn the licences on the top boats '
+            'and rods. No amount of cash substitutes for them.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 12),
-          for (final s in species)
-            _LogRow(species: s, entry: byCode[s.code]),
+          for (final s in species) _LogRow(species: s, entry: byCode[s.code]),
         ],
       ),
     );
@@ -861,8 +1538,6 @@ class _LogRow extends StatelessWidget {
     final caught = entry != null;
     final color = species.rarity.color;
     return Opacity(
-      // Unfound species stay listed but dimmed — you can see what's out there
-      // and which boat you'd need for it.
       opacity: caught ? 1 : 0.42,
       child: ListTile(
         dense: true,
@@ -888,16 +1563,14 @@ class _LogRow extends StatelessWidget {
         ),
         trailing: Text(
           species.rarity.label,
-          style: TextStyle(
-              color: color, fontSize: 11, fontWeight: FontWeight.w800),
+          style:
+              TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
         ),
       ),
     );
   }
 }
 
-/// Sound is off by default, so it needs to be one obvious tap away from the
-/// games that use it.
 class _SoundToggle extends ConsumerWidget {
   const _SoundToggle();
 
