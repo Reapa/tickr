@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trading_game/features/fishing/presentation/biome.dart';
 import 'package:trading_game/features/fishing/presentation/fight_scene.dart';
 import 'package:trading_game/features/fishing/presentation/sea.dart';
 
@@ -16,6 +17,7 @@ import 'package:trading_game/features/fishing/presentation/sea.dart';
 void main() {
   void paint(
     Size size, {
+    Biome? biome,
     double t = 4,
     double tension = 0.5,
     double progress = 0.4,
@@ -29,9 +31,11 @@ void main() {
   }) {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Offset.zero & size);
+    final b = biome ?? Biome.of('open_water');
     FightScene(
       t: t,
-      palette: SeaPalette.lerp(SeaPalette.open, SeaPalette.strained, strain),
+      biome: b,
+      palette: SeaPalette.lerp(b.palette, b.strained, strain),
       tension: tension,
       progress: progress,
       surge: surge,
@@ -64,6 +68,36 @@ void main() {
       },
       returnsNormally,
     );
+  });
+
+  test('every biome paints, in every phase', () {
+    for (final code in const [
+      'harbour',
+      'reef',
+      'open_water',
+      'canyon',
+      'trench',
+      'polar',
+      'a_spot_this_build_has_never_heard_of',
+    ]) {
+      final b = Biome.of(code);
+      expect(
+        () {
+          paint(phone, biome: b, hooked: false, bobber: true, progress: 0);
+          paint(phone, biome: b, tension: 0.5, progress: 0.4);
+          paint(phone, biome: b, tension: 0.9, surge: 1, strain: 0.9);
+          paint(phone, biome: b, progress: 1, breach: 0.8);
+        },
+        returnsNormally,
+        reason: code,
+      );
+    }
+  });
+
+  test('an unknown spot code falls back rather than throwing', () {
+    // The catalog is server-side and can gain a row before the app ships.
+    expect(Biome.of('brand_new_lagoon').code, 'open_water');
+    expect(Biome.of(null).code, 'open_water');
   });
 
   test('survives the sizes a resizing web canvas hands it', () {

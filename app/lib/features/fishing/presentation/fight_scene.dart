@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'biome.dart';
 import 'sea.dart';
 
 /// The fight, drawn.
@@ -22,6 +23,7 @@ import 'sea.dart';
 class FightScene extends CustomPainter {
   FightScene({
     required this.t,
+    required this.biome,
     required this.palette,
     required this.tension,
     required this.progress,
@@ -40,6 +42,10 @@ class FightScene extends CustomPainter {
 
   /// Seconds since the cast landed.
   final double t;
+
+  /// Which stretch of water this is. Owns the light, the visibility and every
+  /// piece of scenery; the pipeline below is the same everywhere.
+  final Biome biome;
   final SeaPalette palette;
   final double tension;
   final double progress;
@@ -77,8 +83,8 @@ class FightScene extends CustomPainter {
   // and the waterline is *drawn* — the first version computed one and never
   // painted it, which left the float and the spray hanging in open blue.
 
-  static const double _horizon = 0.22;
-  static const double _surface = 0.40;
+  double get _horizon => biome.horizon;
+  double get _surface => biome.surface;
 
   SeaBand _nearBand(double chop) => SeaBand(
         rest: _surface,
@@ -160,7 +166,11 @@ class FightScene extends CustomPainter {
     final surfaceRest = size.height * _surface;
 
     paintSky(canvas, size, p,
-        horizonY: horizonY, t: t, sunX: 0.78, stars: 1 - strain);
+        horizonY: horizonY,
+        t: t,
+        sunX: biome.sunX,
+        stars: biome.stars * (1 - strain));
+    biome.paintSkyline(canvas, size, t);
 
     // The surface of the sea, in perspective: horizon at the back, the near
     // waterline at the front, with the swell getting bigger as it comes on.
@@ -231,12 +241,18 @@ class FightScene extends CustomPainter {
           stops: const [0.0, 0.9],
         ).createShader(col),
     );
-    _paintShafts(canvas, size, p, surfaceRest, 1 - strain * 0.6);
+    // Scenery behind the fish, then the light, then the fish, then whatever
+    // this place has in the foreground for it to swim behind.
+    biome.paintFar(canvas, size, t, chop);
+    _paintShafts(
+        canvas, size, p, surfaceRest, biome.shafts * (1 - strain * 0.6));
     _paintMotes(canvas, size, p, surfaceRest);
+    biome.paintCeiling(canvas, size, t);
     _paintSubsurfaceLine(canvas, linePts, entryIndex);
     if (!hooked) _paintLeader(canvas, size, float, chop, p);
     _paintBubbles(canvas, p);
     if (breach < 0.5) _paintFish(canvas, size, fish, p);
+    biome.paintNear(canvas, size, t, chop);
     canvas.restore();
 
     // The waterline itself. This is the line everything else is measured
@@ -281,7 +297,7 @@ class FightScene extends CustomPainter {
   /// make the surface read as a surface than anything else in the frame.
   void _paintGlitter(Canvas canvas, Size size, SeaPalette p, double horizonY,
       double surfaceRest, double chop) {
-    final sx = size.width * 0.78;
+    final sx = size.width * biome.sunX;
     final paint = Paint();
     for (var i = 0; i < 26; i++) {
       final k = i / 25;
@@ -291,7 +307,9 @@ class FightScene extends CustomPainter {
       final phase = math.sin(t * 2.1 + i * 2.7);
       final x = sx + phase * spread + (i.isEven ? -1 : 1) * spread * 0.35;
       paint.color = p.glow.withValues(
-          alpha: (0.30 - 0.14 * k) * (0.45 + 0.55 * phase.abs()));
+          alpha: (0.30 - 0.14 * k) *
+              (0.45 + 0.55 * phase.abs()) *
+              biome.glitter);
       canvas.drawOval(
         Rect.fromCenter(
             center: Offset(x, y), width: 5 + 16 * k, height: 1.1 + 1.4 * k),
@@ -305,7 +323,7 @@ class FightScene extends CustomPainter {
   void _paintShafts(Canvas canvas, Size size, SeaPalette p, double surfaceRest,
       double strength) {
     if (strength <= 0) return;
-    final sx = size.width * 0.78;
+    final sx = size.width * biome.sunX;
     final rect = Rect.fromLTRB(0, surfaceRest, size.width, size.height);
     for (var i = 0; i < 5; i++) {
       final sway = math.sin(t * 0.28 + i * 1.9) * 24;
@@ -335,8 +353,12 @@ class FightScene extends CustomPainter {
   /// Suspended particulate drifting through the beam. Nothing sells "this is a
   /// volume of water and not a blue rectangle" as cheaply as this does.
   void _paintMotes(Canvas canvas, Size size, SeaPalette p, double surfaceRest) {
-    final paint = Paint()..color = p.foam.withValues(alpha: 0.16);
-    for (var i = 0; i < _motes.length; i++) {
+    if (biome.motes <= 0) return;
+    final paint = Paint()
+      ..color = p.foam.withValues(alpha: 0.16 * biome.motes.clamp(0.0, 1.6));
+    // The Trench is thick with marine snow; the Harbour has almost none.
+    final count = (36 * biome.motes).round().clamp(0, _motes.length);
+    for (var i = 0; i < count; i++) {
       final m = _motes[i];
       final drift = (m.dy - t * 0.008 * (0.4 + m.dx)) % 1.0;
       final y = surfaceRest + (size.height - surfaceRest) * drift;
@@ -458,8 +480,11 @@ class FightScene extends CustomPainter {
     final depth = (1 - progress).clamp(0.0, 1.0);
     final length = (46 + 108 * fishScale) * (0.72 + 0.42 * progress);
 
-    // A fish deep in dirty water is a smudge; the detail arrives with it.
-    final clarity = (0.30 + 0.70 * progress).clamp(0.0, 1.0);
+    // A fish deep in dirty water is a smudge; the detail arrives with it. How
+    // much ever arrives is the biome's call — in the Trench you are still
+    // guessing when it is alongside, which is the whole character of the place.
+    final clarity =
+        ((0.30 + 0.70 * progress) * biome.clarity).clamp(0.0, 1.0);
 
     canvas.save();
     canvas.translate(at.dx, at.dy);
@@ -492,6 +517,26 @@ class FightScene extends CustomPainter {
         Colors.black, Color.lerp(p.surface, p.foam, 0.35)!, clarity * 0.55)!;
     canvas.drawPath(
         path, Paint()..color = body.withValues(alpha: 0.55 + 0.40 * clarity));
+
+    // Where there is no sun, the animal lights itself. A row of photophores
+    // along the flank is the only reason you can track it at all down there.
+    if (biome.bioluminescence > 0) {
+      final glow = Paint()
+        ..color = p.glow.withValues(
+            alpha: 0.55 * biome.bioluminescence *
+                (0.55 + 0.45 * math.sin(t * 2.6)));
+      for (var i = 0; i < 7; i++) {
+        final x = length * (0.30 - i * 0.09);
+        canvas.drawCircle(Offset(x, length * 0.055), 1.5, glow);
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = p.glow.withValues(alpha: 0.30 * biome.bioluminescence)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1,
+      );
+    }
 
     // Belly catching the light from above, and a rim along the back. Only
     // worth drawing once the fish is close enough to read.
@@ -791,7 +836,7 @@ class FightScene extends CustomPainter {
 final List<Offset> _motes = () {
   final rng = math.Random(90210);
   return List<Offset>.generate(
-      38, (_) => Offset(rng.nextDouble(), rng.nextDouble()));
+      90, (_) => Offset(rng.nextDouble(), rng.nextDouble()));
 }();
 
 // ---------------------------------------------------------------------------

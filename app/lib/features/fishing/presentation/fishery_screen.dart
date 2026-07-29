@@ -317,6 +317,7 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen> {
               key: ValueKey(_hookup!.encounterId),
               fight: _hookup!.fight!,
               spotName: fishery.trip?.spotName ?? '',
+              spotCode: fishery.trip?.spotCode,
               onFinished: _resolve,
             );
           }

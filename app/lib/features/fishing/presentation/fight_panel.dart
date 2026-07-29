@@ -7,6 +7,7 @@ import '../../../core/sound.dart';
 import '../../../core/theme.dart';
 import '../domain/fight_sim.dart';
 import '../domain/fishery.dart';
+import 'biome.dart';
 import 'fight_scene.dart';
 import 'sea.dart';
 
@@ -34,10 +35,14 @@ class FightPanel extends StatefulWidget {
     required this.fight,
     required this.onFinished,
     this.spotName = '',
+    this.spotCode,
   });
 
   final FightProfile fight;
   final String spotName;
+
+  /// Which water this is. Decides the biome the scene is drawn in.
+  final String? spotCode;
 
   /// (landed, score 0..1). Never fires before the fight could physically have
   /// been played — the server rejects resolves that arrive too early.
@@ -269,12 +274,15 @@ class _FightPanelState extends State<FightPanel>
     );
   }
 
-  /// Calm water, water under load, or the water that just beat you.
+  late final Biome _biome = Biome.of(widget.spotCode);
+
+  /// This water at rest, this water under load, or the water that just beat
+  /// you. Each spot brings its own two ends for that lerp.
   SeaPalette get _palette {
     if (_phase == _Phase.over && !_landed) {
-      return SeaPalette.lerp(SeaPalette.open, SeaPalette.lost, 0.85);
+      return SeaPalette.lerp(_biome.palette, SeaPalette.lost, 0.85);
     }
-    return SeaPalette.lerp(SeaPalette.open, SeaPalette.strained, _strain);
+    return SeaPalette.lerp(_biome.palette, _biome.strained, _strain);
   }
 
   @override
@@ -305,6 +313,7 @@ class _FightPanelState extends State<FightPanel>
                   size: _size,
                   painter: FightScene(
                     t: _elapsed / 1000.0,
+                    biome: _biome,
                     palette: _palette,
                     tension: _tension,
                     progress: _progress,
