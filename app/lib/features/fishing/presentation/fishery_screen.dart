@@ -13,6 +13,7 @@ import '../../portfolio/data/portfolio_repository.dart';
 import '../../profile/data/profile_repository.dart';
 import '../data/fishing_repository.dart';
 import '../domain/fishery.dart';
+import 'encounter_panel.dart';
 import 'fight_panel.dart';
 import 'sea.dart';
 
@@ -312,10 +313,25 @@ class _FisheryScreenState extends ConsumerState<FisheryScreen> {
                 .addPostFrameCallback((_) => _clearStaleHook(stale!));
           }
 
-          if (_hookup?.fight != null) {
+          final fight = _hookup?.fight;
+          if (fight != null) {
+            // A server that describes a reading contest gets the new fight; an
+            // encounter rolled before it existed keeps the old one, so there is
+            // never a moment where a hooked fish has no way to be played out.
+            final encounter = fight.encounter;
+            if (encounter != null) {
+              return EncounterPanel(
+                key: ValueKey(_hookup!.encounterId),
+                fight: fight,
+                profile: encounter,
+                spotName: fishery.trip?.spotName ?? '',
+                spotCode: fishery.trip?.spotCode,
+                onFinished: _resolve,
+              );
+            }
             return FightPanel(
               key: ValueKey(_hookup!.encounterId),
-              fight: _hookup!.fight!,
+              fight: fight,
               spotName: fishery.trip?.spotName ?? '',
               spotCode: fishery.trip?.spotCode,
               onFinished: _resolve,

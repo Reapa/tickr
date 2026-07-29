@@ -307,42 +307,6 @@ void paintWaterBody(
   canvas.restore();
 }
 
-/// A fish, seen from the side, nose pointing along +x.
-///
-/// Built rather than drawn from an asset so the tail can actually beat: [beat]
-/// swings the back half, and [bank] rolls the whole body, which is what makes a
-/// shape under the water read as alive instead of as a sliding oval.
-Path fishPath(double length, {required double beat, double bank = 0}) {
-  final l = length;
-  final h = l * 0.30 * (1 - bank.abs() * 0.55);
-  final sweep = beat * l * 0.10;
-
-  final path = Path()
-    ..moveTo(l * 0.5, 0) // nose
-    // top of the body, back to the wrist of the tail
-    ..cubicTo(l * 0.22, -h, l * -0.10, -h * 0.95, l * -0.30, -h * 0.26 + sweep)
-    // tail fin
-    ..lineTo(l * -0.50, -h * 0.85 + sweep * 1.7)
-    ..lineTo(l * -0.42, sweep * 1.7)
-    ..lineTo(l * -0.50, h * 0.85 + sweep * 1.7)
-    ..lineTo(l * -0.30, h * 0.26 + sweep)
-    // underside, forward to the nose again
-    ..cubicTo(l * -0.10, h * 0.95, l * 0.22, h, l * 0.5, 0)
-    ..close()
-    // Dorsal and pectoral both start *inside* the body — anchored on the
-    // outline they detach from it the moment the body curve moves.
-    ..moveTo(l * 0.12, -h * 0.45)
-    ..lineTo(l * -0.04, -h * 1.55)
-    ..lineTo(l * -0.22, -h * 0.40)
-    ..close()
-    // pectoral, swinging opposite the tail
-    ..moveTo(l * 0.14, h * 0.30)
-    ..lineTo(l * -0.04, h * 1.20 - sweep * 0.6)
-    ..lineTo(l * -0.12, h * 0.28)
-    ..close();
-  return path;
-}
-
 /// A moored boat in silhouette, riding the swell. [cx] and [waterY] are pixels.
 void paintBoat(
   Canvas canvas,
