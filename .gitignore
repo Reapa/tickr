@@ -30,3 +30,6 @@ Thumbs.db
 
 # Local-only admin panel (holds DB credentials — never publish)
 admin/
+
+# Local DB history dumps taken before pruning — large, never publish
+backups/
